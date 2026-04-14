@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Product> Products => Set<Product>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +24,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         modelBuilder.Entity<RefreshToken>()
             .HasQueryFilter(r => r.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<Product>()
+           .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

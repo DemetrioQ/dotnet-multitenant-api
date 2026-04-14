@@ -28,4 +28,12 @@ public class Repository<T>(AppDbContext context) : IRepository<T> where T : Base
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
         context.SaveChangesAsync(ct);
+
+    public async Task<int> CountAsync(CancellationToken ct = default) =>
+        await _set.CountAsync(ct);
+
+    public async Task<IReadOnlyList<T>> GetPagedAsync(int skip, int take, CancellationToken ct = default) =>
+        await _set.Skip(skip).Take(take).ToListAsync(ct);
+
+
 }
