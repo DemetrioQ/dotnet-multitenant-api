@@ -14,9 +14,9 @@ public class ProductTests(WebAppFactory factory) : IntegrationTestBase(factory)
         var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Test Co", slug = "testco-prod" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        var token = await GetAuthTokenAsync(tenant!.TenantId.ToString());
-        SetAuthHeader(token);
-        Client.DefaultRequestHeaders.Add("X-Tenant-Id", tenant.TenantId.ToString());
+        var token = await GetAuthTokenAsync(Client, tenant!.TenantId);
+
+        SetTenantContext(Client, token, tenant!.TenantId);
 
         // Act
         var response = await Client.PostAsJsonAsync("/api/products", new
@@ -37,9 +37,9 @@ public class ProductTests(WebAppFactory factory) : IntegrationTestBase(factory)
         var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Test Co 2", slug = "testco-prod2" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        var token = await GetAuthTokenAsync(tenant!.TenantId.ToString(), "other@test.com");
-        SetAuthHeader(token);
-        Client.DefaultRequestHeaders.Add("X-Tenant-Id", tenant.TenantId.ToString());
+        var token = await GetAuthTokenAsync(Client, tenant!.TenantId);
+
+        SetTenantContext(Client, token, tenant!.TenantId);
 
         var response = await Client.GetAsync($"/api/products/{Guid.NewGuid()}");
 
