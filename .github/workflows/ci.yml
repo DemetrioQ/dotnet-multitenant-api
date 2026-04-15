@@ -27,14 +27,14 @@ jobs:
           run: dotnet build SaasApi.sln --no-restore -c Release
 
         - name: Run integration tests
-          run: dotnet test tests/SaasApi.IntegrationTests/SaasApi.IntegrationTests.csproj --no-build -c Release --logger "console;verbosity=normal"
-          
+          run: dotnet test tests/SaasApi.IntegrationTests/SaasApi.IntegrationTests.csproj --no-build -c Release --logger trx --results-directory ./TestResults
+
         - name: Publish test results
           uses: dorny/test-reporter@v1
           if: always()
           with:
             name: Integration Tests
-            path: "**/*.trx"
+            path: "TestResults/*.trx"
             reporter: dotnet-trx
 
     docker-build:
