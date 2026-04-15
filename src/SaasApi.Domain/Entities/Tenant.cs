@@ -13,7 +13,15 @@ public class Tenant : BaseEntity
 
     public static Tenant Create(string name, string slug)
     {
-        // TODO: validate name/slug (no spaces, lowercase, unique enforced at DB level)
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Tenant name cannot be empty.", nameof(name));
+
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new ArgumentException("Tenant slug cannot be empty.", nameof(slug));
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(slug, @"^[a-z0-9]+(?:-[a-z0-9]+)*$"))
+            throw new ArgumentException("Slug must be lowercase alphanumeric and may contain hyphens (e.g. 'my-tenant').", nameof(slug));
+
         return new Tenant { Name = name, Slug = slug };
     }
 

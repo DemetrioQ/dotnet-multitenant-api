@@ -10,6 +10,7 @@ using SaasApi.Domain.Interfaces;
 using SaasApi.Infrastructure.Persistence;
 using SaasApi.Infrastructure.Repositories;
 using SaasApi.Infrastructure.Services;
+using System.Security.Claims;
 using System.Text;
 
 namespace SaasApi.API.Extensions;
@@ -59,7 +60,8 @@ public static class ServiceCollectionExtensions
                     ValidIssuer = config["Jwt:Issuer"],
                     ValidAudience = config["Jwt:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(config["Jwt:Secret"]!))
+                        Encoding.UTF8.GetBytes(config["Jwt:Secret"]!)),
+                    RoleClaimType = ClaimTypes.Role,
                 };
             });
 

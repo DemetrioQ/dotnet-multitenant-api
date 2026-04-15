@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SaasApi.Application.Features.Tenants.Commands.CreateTenant;
 using SaasApi.Application.Features.Tenants.Commands.DeactivateTenant;
@@ -36,6 +37,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> UpdateTenant([FromRoute] Guid id, [FromBody] UpdateTenantRequest request, CancellationToken ct)
         {
             var command = new UpdateTenantCommand(id, request.Name);
@@ -44,6 +46,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> DeactivateTenant([FromRoute] Guid id, CancellationToken ct)
         {
             await mediator.Send(new DeactivateTenantCommand(id), ct);

@@ -14,6 +14,12 @@ public class User : BaseEntity, ITenantEntity
 
     public static User Create(Guid tenantId, string email, string passwordHash, string role = "member")
     {
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+            throw new ArgumentException("A valid email address is required.", nameof(email));
+
+        if (string.IsNullOrWhiteSpace(passwordHash))
+            throw new ArgumentException("Password hash cannot be empty.", nameof(passwordHash));
+
         return new User { TenantId = tenantId, Email = email, PasswordHash = passwordHash, Role = role };
     }
 

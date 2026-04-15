@@ -48,6 +48,24 @@ namespace SaasApi.API.Middleware
                     };
                     break;
 
+                case UnauthorizedAccessException:
+                    statusCode = StatusCodes.Status401Unauthorized;
+                    problem = new ProblemDetails
+                    {
+                        Title = "Unauthorized",
+                        Detail = "Invalid credentials.",
+                        Status = statusCode
+                    };
+                    break;
+                case ArgumentException ae:
+                    statusCode = StatusCodes.Status400BadRequest;
+                    problem = new ProblemDetails
+                    {
+                        Title = "Invalid argument",
+                        Detail = ae.Message,
+                        Status = statusCode
+                    };
+                    break;
                 default:
                     statusCode = StatusCodes.Status500InternalServerError;
                     problem = new ProblemDetails

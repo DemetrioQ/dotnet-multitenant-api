@@ -20,6 +20,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}/role")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateRole([FromRoute] Guid id, [FromBody] UpdateUserRoleCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command with { Id = id }, ct);
@@ -27,6 +28,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> DeactivateUser([FromRoute] Guid id, CancellationToken ct)
     {
         await mediator.Send(new DeactivateUserCommand(id), ct);
