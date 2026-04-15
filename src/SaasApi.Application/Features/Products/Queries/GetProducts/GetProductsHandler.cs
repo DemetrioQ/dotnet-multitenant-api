@@ -15,7 +15,7 @@ namespace SaasApi.Application.Features.Products.Queries.GetProducts
             var products = await productRepo.GetPagedAsync(skip, request.PageSize, ct);
             int totalCount = await productRepo.CountAsync(ct);
 
-            var dtos = products.Select(p => new ProductDto(p.Id, p.Name, p.Description, p.Price, p.Stock)).ToList();
+            var dtos = products.Select(ProductDto.FromEntity).ToList();
 
             return new GetProductsResult(dtos, totalCount);
         }

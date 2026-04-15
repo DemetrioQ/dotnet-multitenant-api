@@ -10,9 +10,15 @@ public class Tenant : BaseEntity
 
     private Tenant() { } // EF Core
 
+
     public static Tenant Create(string name, string slug)
     {
         // TODO: validate name/slug (no spaces, lowercase, unique enforced at DB level)
         return new Tenant { Name = name, Slug = slug };
     }
+
+    public void Deactivate() => IsActive = false;
+
+    public void UpdateName(string name) => Name = name;
+
 }

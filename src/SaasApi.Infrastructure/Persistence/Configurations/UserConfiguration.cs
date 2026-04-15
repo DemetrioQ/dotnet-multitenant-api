@@ -26,5 +26,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(50)
             .HasDefaultValue("member");
+
+        builder.Property(u => u.IsActive)
+            .IsRequired();
     }
 }

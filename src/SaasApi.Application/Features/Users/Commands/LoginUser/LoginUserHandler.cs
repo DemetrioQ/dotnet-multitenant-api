@@ -9,7 +9,7 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
         IRepository<User> userRepo,
         IRepository<Domain.Entities.RefreshToken> refreshTokenRepo,
         IPasswordHasher passwordHasher,
-        IJwtTokenService jwtTokenService 
+        IJwtTokenService jwtTokenService
         )
         : IRequestHandler<LoginUserCommand, LoginUserResult>
     {
@@ -25,7 +25,7 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
 
             if (!isMatch)
             {
-               throw new UnauthorizedAccessException("Invalid User");
+                throw new UnauthorizedAccessException("Invalid User");
             }
 
             var refreshToken = Domain.Entities.RefreshToken.Create(user.TenantId, user.Id);

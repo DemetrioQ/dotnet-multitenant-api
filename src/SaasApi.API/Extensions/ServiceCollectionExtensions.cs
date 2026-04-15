@@ -1,15 +1,16 @@
-using System.Text;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using SaasApi.API.Middleware;
 using SaasApi.Application.Common.Behaviors;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Interfaces;
 using SaasApi.Infrastructure.Persistence;
 using SaasApi.Infrastructure.Repositories;
 using SaasApi.Infrastructure.Services;
+using System.Text;
 
 namespace SaasApi.API.Extensions;
 
@@ -24,6 +25,9 @@ public static class ServiceCollectionExtensions
             typeof(SaasApi.Application.Common.Behaviors.ValidationBehavior<,>).Assembly);
 
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+        services.AddProblemDetails();
+        services.AddExceptionHandler<GlobalExceptionHandler>();
 
         return services;
     }

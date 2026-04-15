@@ -1,4 +1,5 @@
 using MediatR;
+using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
@@ -16,7 +17,7 @@ public class RegisterUserHandler(
     {
         var existing = await userRepo.FindAsync(u => u.Email == request.Email, ct);
         if (existing.Any())
-            throw new InvalidOperationException("A user with this email already exists in this tenant.");
+            throw new ConflictException("A user with this email already exists in this tenant.");
 
         var passwordHash = passwordHasher.Hash(request.Password);
 

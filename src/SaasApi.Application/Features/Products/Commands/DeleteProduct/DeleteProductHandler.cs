@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
@@ -12,9 +13,9 @@ namespace SaasApi.Application.Features.Products.Commands.DeleteProduct
     {
         async Task IRequestHandler<DeleteProductCommand>.Handle(DeleteProductCommand request, CancellationToken ct)
         {
-            var existing = await productRepo.FindAsync(p =>  p.Id == request.Id, ct);
+            var existing = await productRepo.FindAsync(p => p.Id == request.Id, ct);
             if (!existing.Any())
-                throw new InvalidOperationException("Product with this id does not exists in this tenant.");
+                throw new NotFoundException("Product with this id does not exists in this tenant.");
 
             var product = existing.First();
 
@@ -23,6 +24,6 @@ namespace SaasApi.Application.Features.Products.Commands.DeleteProduct
             await productRepo.SaveChangesAsync(ct);
         }
 
-        
+
     }
 }

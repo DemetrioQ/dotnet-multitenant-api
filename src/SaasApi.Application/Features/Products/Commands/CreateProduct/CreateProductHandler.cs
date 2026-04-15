@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
@@ -15,7 +16,7 @@ namespace SaasApi.Application.Features.Products.Commands.CreateProduct
         {
             var existing = await productRepo.FindAsync(p => p.Name == request.Name, ct);
             if (existing.Any())
-                throw new InvalidOperationException("Product with this name already exists in this tenant.");
+                throw new ConflictException("Product with this name already exists in this tenant.");
 
             var product = Product.Create(currentTenantService.TenantId, request.Name, request.Description, request.Price, request.Stock);
 

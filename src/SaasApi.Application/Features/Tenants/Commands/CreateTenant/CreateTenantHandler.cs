@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using SaasApi.Application.Common.Exceptions;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
@@ -10,7 +11,7 @@ namespace SaasApi.Application.Features.Tenants.Commands.CreateTenant
         {
             var existing = await tenantRepo.FindAsync(u => u.Slug == request.Slug, ct);
             if (existing.Any())
-                throw new InvalidOperationException("A tenant with this slug already exists.");
+                throw new ConflictException("A tenant with this slug already exists.");
 
 
             var tenant = Tenant.Create(request.Name, request.Slug);

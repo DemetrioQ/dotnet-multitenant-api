@@ -410,6 +410,8 @@ FodyWeavers.xsd
 ## Visual studio for Mac
 ##
 
+# Claude Code
+.claude/
 
 # globs
 Makefile.in

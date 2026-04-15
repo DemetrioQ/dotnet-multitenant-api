@@ -8,12 +8,16 @@ public class User : BaseEntity, ITenantEntity
     public string Email { get; private set; } = default!;
     public string PasswordHash { get; private set; } = default!;
     public string Role { get; private set; } = "member"; // e.g. admin, member
+    public bool IsActive { get; private set; } = true;
 
     private User() { } // EF Core
 
     public static User Create(Guid tenantId, string email, string passwordHash, string role = "member")
     {
-        // TODO: validate email format, hash must not be plain text
         return new User { TenantId = tenantId, Email = email, PasswordHash = passwordHash, Role = role };
     }
+
+    public void UpdateRole(string role) => Role = role;
+    public void Deactivate() => IsActive = false;
+
 }

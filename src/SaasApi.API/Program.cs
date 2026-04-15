@@ -1,6 +1,6 @@
-using Serilog;
 using SaasApi.API.Extensions;
 using SaasApi.API.Middleware;
+using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -27,6 +27,7 @@ try
     if (app.Environment.IsDevelopment())
         app.MapOpenApi();
 
+    app.UseExceptionHandler();
     app.UseHttpsRedirection();
     app.UseSerilogRequestLogging();
 
