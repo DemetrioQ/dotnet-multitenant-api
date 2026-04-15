@@ -1,12 +1,12 @@
- name: CI
+name: CI
 
-  on:
-    push:
-      branches: [ "main" ]
-    pull_request:
-      branches: [ "main" ]
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
-  jobs:
+jobs:
     build-and-test:
       name: Build & Test
       runs-on: ubuntu-latest
@@ -27,8 +27,7 @@
           run: dotnet build SaasApi.sln --no-restore -c Release
 
         - name: Run integration tests
-          run: dotnet test tests/SaasApi.IntegrationTests/SaasApi.IntegrationTests.csproj --no-build -c Release --logger
-          "console;verbosity=normal"
+          run: dotnet test tests/SaasApi.IntegrationTests/SaasApi.IntegrationTests.csproj --no-build -c Release --logger "console;verbosity=normal"
           
         - name: Publish test results
           uses: dorny/test-reporter@v1
