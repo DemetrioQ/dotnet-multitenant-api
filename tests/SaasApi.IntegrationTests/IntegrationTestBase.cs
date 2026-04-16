@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SaasApi.Infrastructure.Persistence;
 using SaasApi.IntegrationTests;
@@ -8,7 +8,7 @@ using System.Net.Http.Json;
 public abstract class IntegrationTestBase
 {
     protected readonly HttpClient Client;
-    protected readonly WebAppFactory Factory;  // <-- expose factory
+    protected readonly WebAppFactory Factory;
 
     protected IntegrationTestBase(WebAppFactory factory)
     {
@@ -16,24 +16,18 @@ public abstract class IntegrationTestBase
         Client = factory.CreateClient();
     }
 
-    protected async Task<string> GetAuthTokenAsync(HttpClient client, Guid tenantId, string email = "test@test.com", string password = "Password1!")
+    protected async Task<string> GetAuthTokenAsync(HttpClient client, Guid tenantId, string slug, string email = "test@test.com", string password = "Password1!")
     {
-        client.DefaultRequestHeaders.Remove("X-Tenant-Id");
-        client.DefaultRequestHeaders.Add("X-Tenant-Id", tenantId.ToString());
+        await client.PostAsJsonAsync("/api/auth/register", new { tenantId, email, password });
 
-        await client.PostAsJsonAsync("/api/auth/register", new { email, password });
-
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { slug, email, password });
         var result = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
         return result!.JwtToken;
     }
 
-    protected async Task<string> CreateAdminAsync(Guid tenantId, string email, string password = "Password1!")
+    protected async Task<string> CreateAdminAsync(Guid tenantId, string slug, string email, string password = "Password1!")
     {
-        Client.DefaultRequestHeaders.Remove("X-Tenant-Id");
-        Client.DefaultRequestHeaders.Add("X-Tenant-Id", tenantId.ToString());
-
-        await Client.PostAsJsonAsync("/api/auth/register", new { email, password });
+        await Client.PostAsJsonAsync("/api/auth/register", new { tenantId, email, password });
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -41,17 +35,15 @@ public abstract class IntegrationTestBase
         user.UpdateRole("admin");
         await db.SaveChangesAsync();
 
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new { slug, email, password });
         var result = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
         return result!.JwtToken;
     }
 
-    protected void SetTenantContext(HttpClient client, string token, Guid tenantId)
+    protected void SetTenantContext(HttpClient client, string token)
     {
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        client.DefaultRequestHeaders.Remove("X-Tenant-Id");
-        client.DefaultRequestHeaders.Add("X-Tenant-Id", tenantId.ToString());
     }
 
-    private record LoginResult(string JwtToken, string RefreshToken, DateTime ExpiresAt);
+    private record LoginResult(string JwtToken, DateTime ExpiresAt);
 }

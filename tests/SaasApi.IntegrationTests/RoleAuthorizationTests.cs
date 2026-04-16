@@ -16,8 +16,8 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
         var tenantId = tenant!.TenantId;
 
-        var memberToken = await GetAuthTokenAsync(Client, tenantId, memberEmail);
-        var adminToken = await CreateAdminAsync(tenantId, adminEmail);
+        var memberToken = await GetAuthTokenAsync(Client, tenantId, slug, memberEmail);
+        var adminToken = await CreateAdminAsync(tenantId, slug, adminEmail);
 
         return (tenantId, memberToken, adminToken);
     }
@@ -30,7 +30,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, memberToken, _) = await SetupTenantWithUsersAsync(
             "Role Test A", "role-a", "member-a@role.com", "admin-a@role.com");
 
-        SetTenantContext(Client, memberToken, tenantId);
+        SetTenantContext(Client, memberToken);
 
         var response = await Client.PutAsJsonAsync($"/api/tenants/{tenantId}", new { name = "Hacked Name" });
 
@@ -43,7 +43,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, _, adminToken) = await SetupTenantWithUsersAsync(
             "Role Test B", "role-b", "member-b@role.com", "admin-b@role.com");
 
-        SetTenantContext(Client, adminToken, tenantId);
+        SetTenantContext(Client, adminToken);
 
         var response = await Client.PutAsJsonAsync($"/api/tenants/{tenantId}", new { name = "Updated Name" });
 
@@ -56,7 +56,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, memberToken, _) = await SetupTenantWithUsersAsync(
             "Role Test C", "role-c", "member-c@role.com", "admin-c@role.com");
 
-        SetTenantContext(Client, memberToken, tenantId);
+        SetTenantContext(Client, memberToken);
 
         var response = await Client.DeleteAsync($"/api/tenants/{tenantId}");
 
@@ -69,7 +69,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, _, adminToken) = await SetupTenantWithUsersAsync(
             "Role Test D", "role-d", "member-d@role.com", "admin-d@role.com");
 
-        SetTenantContext(Client, adminToken, tenantId);
+        SetTenantContext(Client, adminToken);
 
         var response = await Client.DeleteAsync($"/api/tenants/{tenantId}");
 
@@ -84,7 +84,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, memberToken, _) = await SetupTenantWithUsersAsync(
             "Role Test E", "role-e", "member-e@role.com", "admin-e@role.com");
 
-        SetTenantContext(Client, memberToken, tenantId);
+        SetTenantContext(Client, memberToken);
 
         var response = await Client.PutAsJsonAsync($"/api/users/{Guid.NewGuid()}/role", new { role = "admin" });
 
@@ -97,7 +97,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, memberToken, _) = await SetupTenantWithUsersAsync(
             "Role Test F", "role-f", "member-f@role.com", "admin-f@role.com");
 
-        SetTenantContext(Client, memberToken, tenantId);
+        SetTenantContext(Client, memberToken);
 
         var response = await Client.DeleteAsync($"/api/users/{Guid.NewGuid()}");
 
@@ -111,7 +111,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
             "Role Test G", "role-g", "member-g@role.com", "admin-g@role.com");
 
         // Get the member's id via users list
-        SetTenantContext(Client, adminToken, tenantId);
+        SetTenantContext(Client, adminToken);
         var users = await Client.GetFromJsonAsync<List<UserResult>>("/api/users");
         var member = users!.First(u => u.Email == "member-g@role.com");
 
@@ -126,7 +126,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
         var (tenantId, _, adminToken) = await SetupTenantWithUsersAsync(
             "Role Test H", "role-h", "member-h@role.com", "admin-h@role.com");
 
-        SetTenantContext(Client, adminToken, tenantId);
+        SetTenantContext(Client, adminToken);
         var users = await Client.GetFromJsonAsync<List<UserResult>>("/api/users");
         var member = users!.First(u => u.Email == "member-h@role.com");
 

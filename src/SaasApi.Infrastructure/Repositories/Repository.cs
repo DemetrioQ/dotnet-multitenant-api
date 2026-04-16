@@ -19,6 +19,9 @@ public class Repository<T>(AppDbContext context) : IRepository<T> where T : Base
     public async Task<IReadOnlyList<T>> FindAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
         await _set.Where(predicate).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<T>> FindGlobalAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default) =>
+        await _set.IgnoreQueryFilters().Where(predicate).ToListAsync(ct);
+
     public async Task AddAsync(T entity, CancellationToken ct = default) =>
         await _set.AddAsync(entity, ct);
 

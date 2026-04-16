@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Tenants.Commands.CreateTenant;
 using SaasApi.Application.Features.Tenants.Commands.DeactivateTenant;
 using SaasApi.Application.Features.Tenants.Commands.UpdateTenant;
@@ -12,7 +13,7 @@ namespace SaasApi.API.Controllers
 
     [ApiController]
     [Route("api/[controller]")]
-    public class TenantsController(IMediator mediator) : ControllerBase
+    public class TenantsController(IMediator mediator, ICurrentTenantService tenantService) : ControllerBase
     {
         [HttpPost]
         public async Task<IActionResult> CreateTenant([FromBody] CreateTenantCommand command, CancellationToken ct)
@@ -22,7 +23,16 @@ namespace SaasApi.API.Controllers
         }
 
 
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> GetMyTenant(CancellationToken ct)
+        {
+            var result = await mediator.Send(new GetTenantByIdQuery(tenantService.TenantId), ct);
+            return Ok(result);
+        }
+
         [HttpGet]
+        [Authorize(Roles = "super-admin")]
         public async Task<IActionResult> GetTenants(CancellationToken ct)
         {
             var result = await mediator.Send(new GetTenantsQuery(), ct);
@@ -30,6 +40,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize(Roles = "super-admin")]
         public async Task<IActionResult> GetTenantById([FromRoute] Guid id, CancellationToken ct)
         {
             var result = await mediator.Send(new GetTenantByIdQuery(id), ct);

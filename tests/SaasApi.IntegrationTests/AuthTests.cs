@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -61,7 +61,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
 
         var response = await Client.PostAsJsonAsync("/api/auth/login", new
         {
-            tenantId = tenant.TenantId,
+            slug = "auth-co-3",
             email = "login@authco.com",
             password = "WrongPassword!"
         });
@@ -70,7 +70,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     }
 
     [Fact]
-    public async Task Login_ValidCredentials_ReturnsToken()
+    public async Task Login_ValidCredentials_ReturnsTokenAndCookie()
     {
         var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 4", slug = "auth-co-4" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
@@ -84,21 +84,24 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
 
         var response = await Client.PostAsJsonAsync("/api/auth/login", new
         {
-            tenantId = tenant.TenantId,
+            slug = "auth-co-4",
             email = "valid@authco.com",
             password = "Password1!"
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<LoginResult>();
         body!.JwtToken.Should().NotBeNullOrEmpty();
-        body.RefreshToken.Should().NotBeNullOrEmpty();
+
+        // Refresh token must be in HttpOnly cookie, not in the response body
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        cookies!.Should().Contain(c => c.Contains("refreshToken") && c.Contains("httponly", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     public async Task RefreshToken_ReturnsNewToken()
     {
-        // Arrange — create tenant, register, login to get tokens
+        // Arrange — create tenant, register, login (cookie stored automatically by CookieContainerHandler)
         var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 5", slug = "auth-co-5" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
@@ -111,27 +114,55 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
 
         var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
         {
-            tenantId = tenant.TenantId,
+            slug = "auth-co-5",
             email = "refresh@authco.com",
             password = "Password1!"
         });
 
         var login = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
 
-        // Act — exchange the refresh token
-        var response = await Client.PostAsJsonAsync("/api/auth/refresh", new
-        {
-            refreshToken = login!.RefreshToken,
-            tenantId = tenant.TenantId
-        });
+        // Act — call refresh with no body; cookie is sent automatically
+        var response = await Client.PostAsync("/api/auth/refresh", null);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<LoginResult>();
         body!.JwtToken.Should().NotBeNullOrEmpty();
-        body.RefreshToken.Should().NotBeNullOrEmpty();
-        body.RefreshToken.Should().NotBe(login.RefreshToken); // new token issued
+
+        // A new refresh token cookie must have been issued (rotation)
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        cookies!.Should().Contain(c => c.Contains("refreshToken"));
     }
+
+    [Fact]
+    public async Task Logout_ClearsRefreshTokenCookie()
+    {
+        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 6", slug = "auth-co-6" });
+        var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
+
+        await Client.PostAsJsonAsync("/api/auth/register", new
+        {
+            tenantId = tenant!.TenantId,
+            email = "logout@authco.com",
+            password = "Password1!"
+        });
+
+        await Client.PostAsJsonAsync("/api/auth/login", new
+        {
+            slug = "auth-co-6",
+            email = "logout@authco.com",
+            password = "Password1!"
+        });
+
+        var response = await Client.PostAsync("/api/auth/logout", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // After logout the refresh cookie should be expired/cleared
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        cookies!.Should().Contain(c => c.Contains("refreshToken") && c.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+    }
+
     private record TenantResult(Guid TenantId);
-    private record LoginResult(string JwtToken, string RefreshToken, DateTime ExpiresAt);
+    private record LoginResult(string JwtToken, DateTime ExpiresAt);
 }

@@ -16,8 +16,8 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
         var client = Factory.CreateClient();
-        var token = await GetAuthTokenAsync(client, tenant!.TenantId, email);
-        SetTenantContext(client, token, tenant.TenantId);
+        var token = await GetAuthTokenAsync(client, tenant!.TenantId, slug, email);
+        SetTenantContext(client, token);
 
         return (client, tenant.TenantId);
     }

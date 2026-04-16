@@ -13,7 +13,7 @@ namespace SaasApi.Application.Features.Users.Commands.RefreshTokens
     {
         public async Task<RefreshTokenResult> Handle(RefreshTokenCommand request, CancellationToken ct)
         {
-            var existing = await refreshTokenRepo.FindAsync(r => r.Token == request.RefreshToken, ct);
+            var existing = await refreshTokenRepo.FindGlobalAsync(r => r.Token == request.RefreshToken, ct);
             if (!existing.Any())
                 throw new UnauthorizedAccessException("Invalid RefreshToken");
 
@@ -28,7 +28,8 @@ namespace SaasApi.Application.Features.Users.Commands.RefreshTokens
             await refreshTokenRepo.AddAsync(newRefreshToken);
             await refreshTokenRepo.SaveChangesAsync();
 
-            var user = await userRepo.GetByIdAsync(refreshToken.UserId);
+            var users = await userRepo.FindGlobalAsync(u => u.Id == refreshToken.UserId, ct);
+            var user = users.FirstOrDefault();
 
             if(user is null) 
                 throw new UnauthorizedAccessException("Invalid RefreshToken");
