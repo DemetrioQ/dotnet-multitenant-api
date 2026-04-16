@@ -8,6 +8,7 @@ using SaasApi.Application.Common.Behaviors;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Interfaces;
 using SaasApi.Infrastructure.Persistence;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Infrastructure.Repositories;
 using SaasApi.Infrastructure.Services;
 using System.Security.Claims;
@@ -42,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentTenantService, CurrentTenantService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IEmailService, EmailService>();
 
         return services;
     }

@@ -20,6 +20,14 @@ public abstract class IntegrationTestBase
     {
         await client.PostAsJsonAsync("/api/auth/register", new { tenantId, email, password });
 
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var user = db.Users.IgnoreQueryFilters().First(u => u.Email == email && u.TenantId == tenantId);
+            user.VerifyEmail();
+            await db.SaveChangesAsync();
+        }
+
         var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { slug, email, password });
         var result = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
         return result!.JwtToken;
@@ -31,7 +39,8 @@ public abstract class IntegrationTestBase
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var user = db.Users.IgnoreQueryFilters().First(u => u.Email == email);
+        var user = db.Users.IgnoreQueryFilters().First(u => u.Email == email && u.TenantId == tenantId);
+        user.VerifyEmail();
         user.UpdateRole("admin");
         await db.SaveChangesAsync();
 

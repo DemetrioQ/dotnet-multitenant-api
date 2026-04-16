@@ -1,22 +1,38 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Users.Commands.LoginUser;
 using SaasApi.Application.Features.Users.Commands.RefreshTokens;
 using SaasApi.Application.Features.Users.Commands.RegisterUser;
+using SaasApi.Application.Features.Users.Commands.VerifyEmail;
 
 namespace SaasApi.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController(IMediator mediator, IWebHostEnvironment env) : ControllerBase
+public class AuthController(
+    IMediator mediator,
+    IWebHostEnvironment env,
+    IEmailService emailService,
+    IConfiguration config) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
-        SetRefreshTokenCookie(result.RefreshToken, result.ExpiresAt);
-        return CreatedAtAction(nameof(Register), new { userId = result.UserId },
-           new { result.UserId, jwtToken = result.Token, expiresAt = result.ExpiresAt });
+
+        var frontendUrl = config["App:FrontendUrl"] ?? "http://localhost:5173";
+        var verificationLink = $"{frontendUrl}/verify-email?token={result.EmailVerificationToken}";
+        await emailService.SendVerificationEmailAsync(command.Email, verificationLink, ct);
+
+        return CreatedAtAction(nameof(Register), new { userId = result.UserId }, new { result.UserId });
+    }
+
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token, CancellationToken ct)
+    {
+        await mediator.Send(new VerifyEmailCommand(token), ct);
+        return Ok(new { message = "Email verified successfully." });
     }
 
     [HttpPost("login")]

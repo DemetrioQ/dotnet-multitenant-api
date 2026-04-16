@@ -7,8 +7,11 @@ public class User : BaseEntity, ITenantEntity
     public Guid TenantId { get; private set; }
     public string Email { get; private set; } = default!;
     public string PasswordHash { get; private set; } = default!;
-    public string Role { get; private set; } = "member"; // e.g. admin, member
+    public string Role { get; private set; } = "member"; // e.g. super-admin, admin, member
     public bool IsActive { get; private set; } = true;
+    public bool IsEmailVerified { get; private set; }
+    public string? EmailVerificationToken { get; private set; }
+    public DateTime? EmailVerificationTokenExpiresAt { get; private set; }
 
     private User() { } // EF Core
 
@@ -21,6 +24,20 @@ public class User : BaseEntity, ITenantEntity
             throw new ArgumentException("Password hash cannot be empty.", nameof(passwordHash));
 
         return new User { TenantId = tenantId, Email = email, PasswordHash = passwordHash, Role = role };
+    }
+
+    public string GenerateVerificationToken()
+    {
+        EmailVerificationToken = Guid.NewGuid().ToString("N");
+        EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddHours(24);
+        return EmailVerificationToken;
+    }
+
+    public void VerifyEmail()
+    {
+        IsEmailVerified = true;
+        EmailVerificationToken = null;
+        EmailVerificationTokenExpiresAt = null;
     }
 
     public void UpdateRole(string role) => Role = role;

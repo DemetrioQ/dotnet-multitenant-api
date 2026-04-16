@@ -33,9 +33,10 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
             bool isMatch = passwordHasher.Verify(request.Password, user.PasswordHash);
 
             if (!isMatch)
-            {
-                throw new UnauthorizedAccessException("Invalid User");
-            }
+                throw new UnauthorizedAccessException("Invalid credentials");
+
+            if (!user.IsEmailVerified)
+                throw new UnauthorizedAccessException("Email not verified. Please check your inbox.");
 
             var refreshToken = Domain.Entities.RefreshToken.Create(user.TenantId, user.Id);
             await refreshTokenRepo.AddAsync(refreshToken);

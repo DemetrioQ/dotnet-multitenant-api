@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -81,6 +83,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
             email = "valid@authco.com",
             password = "Password1!"
         });
+        await VerifyUserEmailAsync("valid@authco.com");
 
         var response = await Client.PostAsJsonAsync("/api/auth/login", new
         {
@@ -111,6 +114,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
             email = "refresh@authco.com",
             password = "Password1!"
         });
+        await VerifyUserEmailAsync("refresh@authco.com");
 
         var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
         {
@@ -161,6 +165,101 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
         // After logout the refresh cookie should be expired/cleared
         response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
         cookies!.Should().Contain(c => c.Contains("refreshToken") && c.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Login_UnverifiedEmail_Returns401()
+    {
+        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 7", slug = "auth-co-7" });
+        var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
+
+        await Client.PostAsJsonAsync("/api/auth/register", new
+        {
+            tenantId = tenant!.TenantId,
+            email = "unverified@authco.com",
+            password = "Password1!"
+        });
+
+        // Attempt login without verifying email first
+        var response = await Client.PostAsJsonAsync("/api/auth/login", new
+        {
+            slug = "auth-co-7",
+            email = "unverified@authco.com",
+            password = "Password1!"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_ValidToken_Returns200()
+    {
+        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 8", slug = "auth-co-8" });
+        var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
+
+        await Client.PostAsJsonAsync("/api/auth/register", new
+        {
+            tenantId = tenant!.TenantId,
+            email = "toverify@authco.com",
+            password = "Password1!"
+        });
+
+        // Get the token directly from DB
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
+        var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "toverify@authco.com");
+        var token = user.EmailVerificationToken;
+
+        var response = await Client.GetAsync($"/api/auth/verify-email?token={token}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_ThenLogin_Succeeds()
+    {
+        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 9", slug = "auth-co-9" });
+        var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
+
+        await Client.PostAsJsonAsync("/api/auth/register", new
+        {
+            tenantId = tenant!.TenantId,
+            email = "fullflow@authco.com",
+            password = "Password1!"
+        });
+
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
+        var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "fullflow@authco.com");
+        var token = user.EmailVerificationToken;
+
+        await Client.GetAsync($"/api/auth/verify-email?token={token}");
+
+        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
+        {
+            slug = "auth-co-9",
+            email = "fullflow@authco.com",
+            password = "Password1!"
+        });
+
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_InvalidToken_Returns400()
+    {
+        var response = await Client.GetAsync("/api/auth/verify-email?token=invalid-token-xyz");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task VerifyUserEmailAsync(string email)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
+        var user = db.Users.IgnoreQueryFilters().First(u => u.Email == email);
+        user.VerifyEmail();
+        await db.SaveChangesAsync();
     }
 
     private record TenantResult(Guid TenantId);

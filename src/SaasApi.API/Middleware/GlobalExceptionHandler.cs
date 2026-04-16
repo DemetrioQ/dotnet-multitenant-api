@@ -48,6 +48,16 @@ namespace SaasApi.API.Middleware
                     };
                     break;
 
+                case BadRequestException bre:
+                    statusCode = StatusCodes.Status400BadRequest;
+                    problem = new ProblemDetails
+                    {
+                        Title = "Bad request",
+                        Detail = bre.Message,
+                        Status = statusCode
+                    };
+                    break;
+
                 case UnauthorizedAccessException:
                     statusCode = StatusCodes.Status401Unauthorized;
                     problem = new ProblemDetails
