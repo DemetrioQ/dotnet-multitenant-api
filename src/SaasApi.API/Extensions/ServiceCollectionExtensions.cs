@@ -1,6 +1,8 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SaasApi.API.Middleware;
@@ -8,11 +10,11 @@ using SaasApi.Application.Common.Behaviors;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Interfaces;
 using SaasApi.Infrastructure.Persistence;
-using SaasApi.Application.Common.Interfaces;
 using SaasApi.Infrastructure.Repositories;
 using SaasApi.Infrastructure.Services;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace SaasApi.API.Extensions;
 
@@ -44,6 +46,41 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IEmailService, EmailService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.AddSlidingWindowLimiter("AuthRateLimit", limiter =>
+            {
+                limiter.Window = TimeSpan.FromSeconds(60);
+                limiter.PermitLimit = 10;
+                limiter.SegmentsPerWindow = 6; // 6 segments = checks every 10 seconds
+                limiter.QueueLimit = 0;
+                limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            });
+
+            options.OnRejected = async (context, ct) =>
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString();
+
+                var problem = new ProblemDetails
+                {
+                    Title = "Too many requests",
+                    Detail = "You have exceeded the rate limit. Please try again later.",
+                    Status = StatusCodes.Status429TooManyRequests
+                };
+
+                await context.HttpContext.Response.WriteAsJsonAsync(problem, ct);
+            };
+        });
 
         return services;
     }

@@ -15,7 +15,8 @@ builder.Host.UseSerilog((ctx, lc) => lc
 builder.Services
     .AddApplicationServices()
     .AddInfrastructure(builder.Configuration)
-    .AddJwtAuthentication(builder.Configuration);
+    .AddJwtAuthentication(builder.Configuration)
+    .AddRateLimiting();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -39,6 +40,9 @@ app.UseExceptionHandler();
 app.UseCors("Frontend");
 app.UseHttpsRedirection();
 app.UseSerilogRequestLogging();
+
+if (!app.Environment.IsEnvironment("Testing"))
+    app.UseRateLimiter();
 
 app.UseAuthentication();
 // Tenant resolution must come AFTER authentication (needs validated JWT)

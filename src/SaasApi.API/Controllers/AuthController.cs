@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Users.Commands.ForgotPassword;
 using SaasApi.Application.Features.Users.Commands.ResendVerification;
@@ -39,6 +40,7 @@ public class AuthController(
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("AuthRateLimit")]
     public async Task<IActionResult> Login([FromBody] LoginUserCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
@@ -59,6 +61,7 @@ public class AuthController(
     }
 
     [HttpPost("resend-verification")]
+    [EnableRateLimiting("AuthRateLimit")]
     public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
@@ -74,6 +77,7 @@ public class AuthController(
     }
 
     [HttpPost("forgot-password")]
+    [EnableRateLimiting("AuthRateLimit")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);
