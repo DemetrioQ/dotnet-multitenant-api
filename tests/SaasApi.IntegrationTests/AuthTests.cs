@@ -168,7 +168,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     }
 
     [Fact]
-    public async Task Login_UnverifiedEmail_Returns401()
+    public async Task Login_UnverifiedEmail_Returns403WithErrorCode()
     {
         var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 7", slug = "auth-co-7" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
@@ -180,7 +180,6 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
             password = "Password1!"
         });
 
-        // Attempt login without verifying email first
         var response = await Client.PostAsJsonAsync("/api/auth/login", new
         {
             slug = "auth-co-7",
@@ -188,7 +187,11 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
             password = "Password1!"
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        body.GetProperty("errorCode").GetString().Should().Be("EMAIL_NOT_VERIFIED");
+        body.GetProperty("canResendAt").GetDateTime().Should().BeAfter(DateTime.UtcNow.AddSeconds(-5));
     }
 
     [Fact]
@@ -204,11 +207,10 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
             password = "Password1!"
         });
 
-        // Get the token directly from DB
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
         var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "toverify@authco.com");
-        var token = user.EmailVerificationToken;
+        var token = db.EmailVerificationTokens.IgnoreQueryFilters().First(t => t.UserId == user.Id).Token;
 
         var response = await Client.GetAsync($"/api/auth/verify-email?token={token}");
 
@@ -231,7 +233,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
         var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "fullflow@authco.com");
-        var token = user.EmailVerificationToken;
+        var token = db.EmailVerificationTokens.IgnoreQueryFilters().First(t => t.UserId == user.Id).Token;
 
         await Client.GetAsync($"/api/auth/verify-email?token={token}");
 

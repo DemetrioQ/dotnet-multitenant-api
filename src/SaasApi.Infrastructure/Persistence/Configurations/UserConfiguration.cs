@@ -33,12 +33,5 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.IsEmailVerified)
             .IsRequired()
             .HasDefaultValue(false);
-
-        builder.Property(u => u.EmailVerificationToken)
-            .HasMaxLength(64);
-
-        builder.HasIndex(u => u.EmailVerificationToken)
-            .IsUnique()
-            .HasFilter("[EmailVerificationToken] IS NOT NULL");
     }
 }

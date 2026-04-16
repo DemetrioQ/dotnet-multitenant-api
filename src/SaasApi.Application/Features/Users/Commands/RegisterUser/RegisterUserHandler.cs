@@ -8,6 +8,7 @@ namespace SaasApi.Application.Features.Users.Commands.RegisterUser;
 
 public class RegisterUserHandler(
     IRepository<User> userRepo,
+    IRepository<EmailVerificationToken> verificationTokenRepo,
     IPasswordHasher passwordHasher)
     : IRequestHandler<RegisterUserCommand, RegisterUserResult>
 {
@@ -19,12 +20,14 @@ public class RegisterUserHandler(
             throw new ConflictException("A user with this email already exists in this tenant.");
 
         var passwordHash = passwordHasher.Hash(request.Password);
-
         var user = User.Create(request.TenantId, request.Email, passwordHash);
-        var verificationToken = user.GenerateVerificationToken();
         await userRepo.AddAsync(user, ct);
         await userRepo.SaveChangesAsync(ct);
 
-        return new RegisterUserResult(user.Id, verificationToken);
+        var verificationToken = EmailVerificationToken.Create(user.TenantId, user.Id);
+        await verificationTokenRepo.AddAsync(verificationToken, ct);
+        await verificationTokenRepo.SaveChangesAsync(ct);
+
+        return new RegisterUserResult(user.Id, verificationToken.Token);
     }
 }

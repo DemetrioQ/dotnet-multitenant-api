@@ -12,13 +12,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Global query filter — every query on ITenantEntity is automatically scoped to the current tenant.
-        // TODO: add this filter for every entity that implements ITenantEntity
         modelBuilder.Entity<User>()
             .HasQueryFilter(u => u.TenantId == tenantService.TenantId);
 
@@ -26,7 +26,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
             .HasQueryFilter(r => r.TenantId == tenantService.TenantId);
 
         modelBuilder.Entity<Product>()
-           .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
+            .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<EmailVerificationToken>()
+            .HasQueryFilter(e => e.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

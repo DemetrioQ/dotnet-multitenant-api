@@ -17,4 +17,13 @@ public class EmailService(ILogger<EmailService> logger) : IEmailService
 
         return Task.CompletedTask;
     }
+
+    public Task SendPasswordResetEmailAsync(string toEmail, string resetLink, CancellationToken ct = default)
+    {
+        logger.LogInformation(
+            "[EMAIL] To: {Email} | Subject: Reset your password | Link: {Link}",
+            toEmail, resetLink);
+
+        return Task.CompletedTask;
+    }
 }

@@ -10,6 +10,7 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
         IRepository<User> userRepo,
         IRepository<Tenant> tenantRepo,
         IRepository<Domain.Entities.RefreshToken> refreshTokenRepo,
+        IRepository<EmailVerificationToken> verificationTokenRepo,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService
         )
@@ -36,7 +37,15 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
                 throw new UnauthorizedAccessException("Invalid credentials");
 
             if (!user.IsEmailVerified)
-                throw new UnauthorizedAccessException("Email not verified. Please check your inbox.");
+            {
+                var tokens = await verificationTokenRepo.FindGlobalAsync(t => t.UserId == user.Id, ct);
+                var existingToken = tokens.FirstOrDefault();
+                var canResendAt = existingToken is not null
+                    ? existingToken.CreatedAt.AddMinutes(2)
+                    : DateTime.UtcNow;
+
+                throw new EmailNotVerifiedException(canResendAt);
+            }
 
             var refreshToken = Domain.Entities.RefreshToken.Create(user.TenantId, user.Id);
             await refreshTokenRepo.AddAsync(refreshToken);
@@ -45,8 +54,6 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
             string jwtToken = jwtTokenService.GenerateToken(user);
 
             return new LoginUserResult(jwtToken, refreshToken.Token, refreshToken.ExpiresAt);
-
-
         }
     }
 }

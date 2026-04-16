@@ -5,22 +5,25 @@ using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.Users.Commands.VerifyEmail;
 
-public class VerifyEmailHandler(IRepository<User> userRepo) : IRequestHandler<VerifyEmailCommand>
+public class VerifyEmailHandler(
+    IRepository<EmailVerificationToken> verificationTokenRepo,
+    IRepository<User> userRepo) : IRequestHandler<VerifyEmailCommand>
 {
     public async Task Handle(VerifyEmailCommand request, CancellationToken ct)
     {
-        var users = await userRepo.FindGlobalAsync(
-            u => u.EmailVerificationToken == request.Token, ct);
+        var tokens = await verificationTokenRepo.FindGlobalAsync(
+            t => t.Token == request.Token, ct);
 
-        if (!users.Any())
+        if (!tokens.Any() || tokens.First().IsExpired)
             throw new BadRequestException("Invalid or expired verification token.");
 
+        var verificationToken = tokens.First();
+
+        var users = await userRepo.FindGlobalAsync(u => u.Id == verificationToken.UserId, ct);
         var user = users.First();
 
-        if (user.EmailVerificationTokenExpiresAt < DateTime.UtcNow)
-            throw new BadRequestException("Verification token has expired. Please register again.");
-
         user.VerifyEmail();
+        verificationTokenRepo.Remove(verificationToken);
         await userRepo.SaveChangesAsync(ct);
     }
 }

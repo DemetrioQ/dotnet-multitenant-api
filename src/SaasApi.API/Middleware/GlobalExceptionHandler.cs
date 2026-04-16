@@ -58,6 +58,21 @@ namespace SaasApi.API.Middleware
                     };
                     break;
 
+                case EmailNotVerifiedException enve:
+                    statusCode = StatusCodes.Status403Forbidden;
+                    problem = new ProblemDetails
+                    {
+                        Title = "Email not verified",
+                        Detail = enve.Message,
+                        Status = statusCode,
+                        Extensions =
+                        {
+                            ["errorCode"] = "EMAIL_NOT_VERIFIED",
+                            ["canResendAt"] = enve.CanResendAt
+                        }
+                    };
+                    break;
+
                 case UnauthorizedAccessException:
                     statusCode = StatusCodes.Status401Unauthorized;
                     problem = new ProblemDetails
