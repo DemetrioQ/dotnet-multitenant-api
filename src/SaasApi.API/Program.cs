@@ -10,7 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((ctx, lc) => lc
     .ReadFrom.Configuration(ctx.Configuration)
-    .WriteTo.Console());
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate:
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}"));
 
 builder.Services
     .AddApplicationServices()
@@ -39,7 +41,16 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 app.UseCors("Frontend");
 app.UseHttpsRedirection();
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(opts =>
+{
+    opts.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        var tenantId = httpContext.User.FindFirst("tenant_id")?.Value;
+        var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (tenantId is not null) diagnosticContext.Set("TenantId", tenantId);
+        if (userId is not null) diagnosticContext.Set("UserId", userId);
+    };
+});
 
 if (!app.Environment.IsEnvironment("Testing"))
     app.UseRateLimiter();
@@ -49,6 +60,7 @@ app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 if (!app.Environment.IsEnvironment("Testing"))

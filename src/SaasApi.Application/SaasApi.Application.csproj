@@ -13,9 +13,11 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="MediatR" Version="14.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.4" />
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Features\Tenants\Commands\UpdateTenantSettings\" />
     <Folder Include="Features\Tenants\Commands\UpdateUserRole\" />
   </ItemGroup>
 

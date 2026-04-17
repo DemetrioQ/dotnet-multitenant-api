@@ -26,4 +26,13 @@ public class EmailService(ILogger<EmailService> logger) : IEmailService
 
         return Task.CompletedTask;
     }
+
+    public Task SendInvitationEmailAsync(string toEmail, string inviteLink, CancellationToken ct = default)
+    {
+        logger.LogInformation(
+            "[EMAIL] To: {Email} | Subject: You've been invited | Link: {Link}",
+            toEmail, inviteLink);
+
+        return Task.CompletedTask;
+    }
 }

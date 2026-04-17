@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -30,8 +31,19 @@ public static class ServiceCollectionExtensions
 
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
+        services.AddMemoryCache();
+        services.AddHealthChecks()
+            .AddDbContextCheck<AppDbContext>("database");
         services.AddProblemDetails();
         services.AddExceptionHandler<GlobalExceptionHandler>();
+
+        services.AddApiVersioning(opts =>
+        {
+            opts.DefaultApiVersion = new ApiVersion(1, 0);
+            opts.AssumeDefaultVersionWhenUnspecified = true;
+            opts.ReportApiVersions = true;
+            opts.ApiVersionReader = new UrlSegmentApiVersionReader();
+        });
 
         return services;
     }
@@ -42,10 +54,14 @@ public static class ServiceCollectionExtensions
             opts.UseSqlServer(config.GetConnectionString("DefaultConnection")));
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddHttpContextAccessor();
         services.AddScoped<ICurrentTenantService, CurrentTenantService>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
+        services.AddHostedService<BackgroundJobProcessor>();
 
         return services;
     }
@@ -54,11 +70,26 @@ public static class ServiceCollectionExtensions
     {
         services.AddRateLimiter(options =>
         {
+            // Global limiter: 100 requests / 60 seconds, partitioned by authenticated user or IP
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var partitionKey = userId ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 100,
+                    Window = TimeSpan.FromSeconds(60),
+                    QueueLimit = 0
+                });
+            });
+
+            // Stricter limiter for auth endpoints: 10 requests / 60 seconds per IP
             options.AddSlidingWindowLimiter("AuthRateLimit", limiter =>
             {
                 limiter.Window = TimeSpan.FromSeconds(60);
                 limiter.PermitLimit = 10;
-                limiter.SegmentsPerWindow = 6; // 6 segments = checks every 10 seconds
+                limiter.SegmentsPerWindow = 6;
                 limiter.QueueLimit = 0;
                 limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
             });
