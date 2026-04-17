@@ -47,7 +47,7 @@ namespace SaasApi.Application.Features.Users.Commands.LoginUser
                 throw new EmailNotVerifiedException(canResendAt);
             }
 
-            var refreshToken = Domain.Entities.RefreshToken.Create(user.TenantId, user.Id);
+            var refreshToken = Domain.Entities.RefreshToken.Create(user.TenantId, user.Id, Guid.NewGuid());
             await refreshTokenRepo.AddAsync(refreshToken);
             await refreshTokenRepo.SaveChangesAsync();
 

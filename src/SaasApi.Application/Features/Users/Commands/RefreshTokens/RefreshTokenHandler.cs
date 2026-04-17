@@ -19,12 +19,22 @@ namespace SaasApi.Application.Features.Users.Commands.RefreshTokens
 
             var refreshToken = existing.First();
 
-            if (!refreshToken.IsValid)
+            // Token already revoked → reuse detected → wipe the entire family
+            if (refreshToken.RevokedAt != null)
+            {
+                var family = await refreshTokenRepo.FindGlobalAsync(r => r.FamilyId == refreshToken.FamilyId, ct);
+                foreach (var t in family.Where(t => t.RevokedAt == null))
+                    t.Revoke();
+                await refreshTokenRepo.SaveChangesAsync(ct);
+                throw new UnauthorizedAccessException("Invalid RefreshToken");
+            }
+
+            if (refreshToken.IsExpired)
                 throw new UnauthorizedAccessException("Invalid RefreshToken");
 
             refreshToken.Revoke();
 
-            var newRefreshToken = RefreshToken.Create(refreshToken.TenantId, refreshToken.UserId);
+            var newRefreshToken = RefreshToken.Create(refreshToken.TenantId, refreshToken.UserId, refreshToken.FamilyId);
             await refreshTokenRepo.AddAsync(newRefreshToken);
             await refreshTokenRepo.SaveChangesAsync();
 

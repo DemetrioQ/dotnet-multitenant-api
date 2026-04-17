@@ -14,11 +14,13 @@ namespace SaasApi.Domain.Entities
         public bool IsExpired => ExpiresAt < DateTime.UtcNow;
         public bool IsValid => RevokedAt == null && !IsExpired;
 
+        public Guid FamilyId { get; private set; }
+
         private RefreshToken() { } // EF Core
 
-        public static RefreshToken Create(Guid tenantId, Guid userId)
+        public static RefreshToken Create(Guid tenantId, Guid userId, Guid familyId)
         {
-            return new RefreshToken { TenantId = tenantId, UserId = userId, Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)), ExpiresAt = DateTime.UtcNow.AddDays(7) };
+            return new RefreshToken { TenantId = tenantId, UserId = userId, FamilyId = familyId, Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)), ExpiresAt = DateTime.UtcNow.AddDays(7) };
         }
 
         public  void Revoke()

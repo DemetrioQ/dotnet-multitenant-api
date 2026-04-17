@@ -28,6 +28,11 @@ namespace SaasApi.Infrastructure.Persistence.Configurations
             builder.Property(r => r.RevokedAt)
                 .IsRequired(false);
 
+            builder.Property(r => r.FamilyId)
+                .IsRequired();
+
+            builder.HasIndex(r => r.FamilyId);
+
         }
     }
 }
