@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -8,7 +8,7 @@ namespace SaasApi.Application.Features.Products.Commands.UpdateProduct
 {
     public class UpdateProductHandler(
         IRepository<Product> productRepo,
-        ICurrentTenantService currentTenantService
+        IAuditService auditService
         ) : IRequestHandler<UpdateProductCommand, UpdateProductResult>
     {
         public async Task<UpdateProductResult> Handle(UpdateProductCommand request, CancellationToken ct)
@@ -22,6 +22,8 @@ namespace SaasApi.Application.Features.Products.Commands.UpdateProduct
             product.Update(request.Name, request.Description, request.Price, request.Stock);
             productRepo.Update(product);
             await productRepo.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("product.updated", "Product", product.Id, $"Updated {request.Name}", ct);
 
             return new UpdateProductResult(product.Id);
         }

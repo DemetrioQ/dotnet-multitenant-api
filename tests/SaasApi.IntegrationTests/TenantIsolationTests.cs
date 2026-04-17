@@ -12,7 +12,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
 
     private async Task<(HttpClient client, Guid tenantId)> CreateTenantClientAsync(string name, string slug, string email)
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name, slug });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name, slug });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
         var client = Factory.CreateClient();
@@ -29,7 +29,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var (clientB, _) = await CreateTenantClientAsync("Isolation Co B", "iso-b", "userB@iso.com");
 
         // Tenant A creates a product
-        var createResponse = await clientA.PostAsJsonAsync("/api/products", new
+        var createResponse = await clientA.PostAsJsonAsync("/api/v1/products", new
         {
             name = "Secret Widget",
             description = "Only for tenant A",
@@ -39,7 +39,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var product = await createResponse.Content.ReadFromJsonAsync<ProductResult>();
 
         // Tenant B tries to read it
-        var response = await clientB.GetAsync($"/api/products/{product!.ProductId}");
+        var response = await clientB.GetAsync($"/api/v1/products/{product!.ProductId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -50,7 +50,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var (clientA, _) = await CreateTenantClientAsync("Isolation Co C", "iso-c", "userC@iso.com");
         var (clientB, _) = await CreateTenantClientAsync("Isolation Co D", "iso-d", "userD@iso.com");
 
-        var createResponse = await clientA.PostAsJsonAsync("/api/products", new
+        var createResponse = await clientA.PostAsJsonAsync("/api/v1/products", new
         {
             name = "Secret Widget",
             description = "Only for tenant A",
@@ -59,7 +59,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         });
         var product = await createResponse.Content.ReadFromJsonAsync<ProductResult>();
 
-        var response = await clientB.PutAsJsonAsync($"/api/products/{product!.ProductId}", new
+        var response = await clientB.PutAsJsonAsync($"/api/v1/products/{product!.ProductId}", new
         {
             name = "Hacked",
             description = "Hacked",
@@ -76,7 +76,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var (clientA, _) = await CreateTenantClientAsync("Isolation Co E", "iso-e", "userE@iso.com");
         var (clientB, _) = await CreateTenantClientAsync("Isolation Co F", "iso-f", "userF@iso.com");
 
-        var createResponse = await clientA.PostAsJsonAsync("/api/products", new
+        var createResponse = await clientA.PostAsJsonAsync("/api/v1/products", new
         {
             name = "Secret Widget",
             description = "Only for tenant A",
@@ -85,7 +85,7 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         });
         var product = await createResponse.Content.ReadFromJsonAsync<ProductResult>();
 
-        var response = await clientB.DeleteAsync($"/api/products/{product!.ProductId}");
+        var response = await clientB.DeleteAsync($"/api/v1/products/{product!.ProductId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -97,23 +97,29 @@ public class TenantIsolationTests(WebAppFactory factory) : IntegrationTestBase(f
         var (clientB, _) = await CreateTenantClientAsync("Isolation Co H", "iso-h", "userH@iso.com");
 
         // Tenant B lists users — should not see Tenant A's user
-        var response = await clientB.GetAsync("/api/users");
-        var users = await response.Content.ReadFromJsonAsync<List<UserResult>>();
+        var response = await clientB.GetAsync("/api/v1/users");
+        var body = await response.Content.ReadFromJsonAsync<PagedResult<UserResult>>();
 
-        users!.Should().NotContain(u => u.Email == "userG@iso.com");
+        body!.Items.Should().NotContain(u => u.Email == "userG@iso.com");
     }
 
 
     [Fact]
     public async Task Member_CannotDeactivate_AnyUser()
     {
-        var (clientB, _) = await CreateTenantClientAsync("Isolation Co J", "iso-j", "userJ@iso.com");
+        // Register admin first, then member — first user in a tenant gets admin role
+        var (_, tenantIdJ) = await CreateTenantClientAsync("Isolation Co J", "iso-j", "adminJ@iso.com");
 
-        // clientB is a member — [Authorize(Roles = "admin")] blocks before the handler runs
-        var response = await clientB.DeleteAsync($"/api/users/{Guid.NewGuid()}");
+        var memberClient = Factory.CreateClient();
+        var memberToken = await GetAuthTokenAsync(memberClient, tenantIdJ, "iso-j", "userJ@iso.com");
+        SetTenantContext(memberClient, memberToken);
+
+        // memberClient is a member — [Authorize(Roles = "admin")] blocks before the handler runs
+        var response = await memberClient.DeleteAsync($"/api/v1/users/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private record UserResult(Guid Id, string Email, string Role, bool IsActive);
+    private record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
 }

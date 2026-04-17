@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -8,7 +8,7 @@ namespace SaasApi.Application.Features.Products.Commands.DeleteProduct
 {
     public class DeleteProductHandler(
         IRepository<Product> productRepo,
-        ICurrentTenantService currentTenantService
+        IAuditService auditService
         ) : IRequestHandler<DeleteProductCommand>
     {
         async Task IRequestHandler<DeleteProductCommand>.Handle(DeleteProductCommand request, CancellationToken ct)
@@ -19,11 +19,11 @@ namespace SaasApi.Application.Features.Products.Commands.DeleteProduct
 
             var product = existing.First();
 
-            productRepo.Remove(product);
-
+            product.Deactivate();
+            productRepo.Update(product);
             await productRepo.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("product.deactivated", "Product", request.Id, $"Deactivated {product.Name}", ct);
         }
-
-
     }
 }

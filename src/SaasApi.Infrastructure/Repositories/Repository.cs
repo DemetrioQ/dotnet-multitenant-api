@@ -38,5 +38,8 @@ public class Repository<T>(AppDbContext context) : IRepository<T> where T : Base
     public async Task<IReadOnlyList<T>> GetPagedAsync(int skip, int take, CancellationToken ct = default) =>
         await _set.Skip(skip).Take(take).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<T>> GetPagedDescAsync(int skip, int take, CancellationToken ct = default) =>
+        await _set.OrderByDescending(e => e.CreatedAt).Skip(skip).Take(take).ToListAsync(ct);
+
 
 }

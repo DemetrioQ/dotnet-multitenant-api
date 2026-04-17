@@ -18,7 +18,7 @@ public abstract class IntegrationTestBase
 
     protected async Task<string> GetAuthTokenAsync(HttpClient client, Guid tenantId, string slug, string email = "test@test.com", string password = "Password1!")
     {
-        await client.PostAsJsonAsync("/api/auth/register", new { tenantId, email, password });
+        await client.PostAsJsonAsync("/api/v1/auth/register", new { tenantId, email, password, firstName = "Test", lastName = "User" });
 
         using (var scope = Factory.Services.CreateScope())
         {
@@ -28,14 +28,14 @@ public abstract class IntegrationTestBase
             await db.SaveChangesAsync();
         }
 
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { slug, email, password });
+        var loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", new { slug, email, password });
         var result = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
         return result!.JwtToken;
     }
 
     protected async Task<string> CreateAdminAsync(Guid tenantId, string slug, string email, string password = "Password1!")
     {
-        await Client.PostAsJsonAsync("/api/auth/register", new { tenantId, email, password });
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new { tenantId, email, password, firstName = "Admin", lastName = "User" });
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -44,7 +44,7 @@ public abstract class IntegrationTestBase
         user.UpdateRole("admin");
         await db.SaveChangesAsync();
 
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new { slug, email, password });
+        var loginResponse = await Client.PostAsJsonAsync("/api/v1/auth/login", new { slug, email, password });
         var result = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
         return result!.JwtToken;
     }

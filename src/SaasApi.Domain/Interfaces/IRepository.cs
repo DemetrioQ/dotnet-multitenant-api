@@ -15,4 +15,5 @@ public interface IRepository<T> where T : BaseEntity
     Task<int> SaveChangesAsync(CancellationToken ct = default);
     Task<int> CountAsync(CancellationToken ct = default);
     Task<IReadOnlyList<T>> GetPagedAsync(int skip, int take, CancellationToken ct = default);
+    Task<IReadOnlyList<T>> GetPagedDescAsync(int skip, int take, CancellationToken ct = default);
 }

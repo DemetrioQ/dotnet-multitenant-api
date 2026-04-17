@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -13,11 +14,12 @@ using SaasApi.Application.Features.Users.Commands.VerifyEmail;
 namespace SaasApi.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class AuthController(
     IMediator mediator,
     IWebHostEnvironment env,
-    IEmailService emailService,
+    IBackgroundJobQueue jobQueue,
     IConfiguration config) : ControllerBase
 {
     [HttpPost("register")]
@@ -27,7 +29,12 @@ public class AuthController(
 
         var frontendUrl = config["App:FrontendUrl"] ?? "http://localhost:5173";
         var verificationLink = $"{frontendUrl}/verify-email?token={result.EmailVerificationToken}";
-        await emailService.SendVerificationEmailAsync(command.Email, verificationLink, ct);
+        var email = command.Email;
+        await jobQueue.EnqueueAsync(async (sp, ct) =>
+        {
+            var emailService = sp.GetRequiredService<IEmailService>();
+            await emailService.SendVerificationEmailAsync(email, verificationLink, ct);
+        }, ct);
 
         return CreatedAtAction(nameof(Register), new { userId = result.UserId }, new { result.UserId });
     }
@@ -70,7 +77,12 @@ public class AuthController(
         {
             var frontendUrl = config["App:FrontendUrl"] ?? "http://localhost:5173";
             var verificationLink = $"{frontendUrl}/verify-email?token={result.Token}";
-            await emailService.SendVerificationEmailAsync(command.Email, verificationLink, ct);
+            var email = command.Email;
+            await jobQueue.EnqueueAsync(async (sp, ct) =>
+            {
+                var emailService = sp.GetRequiredService<IEmailService>();
+                await emailService.SendVerificationEmailAsync(email, verificationLink, ct);
+            }, ct);
         }
 
         return Ok(new { message = "If the account exists and is unverified, a new verification email has been sent." });
@@ -86,7 +98,12 @@ public class AuthController(
         {
             var frontendUrl = config["App:FrontendUrl"] ?? "http://localhost:5173";
             var resetLink = $"{frontendUrl}/reset-password?token={result.ResetToken}";
-            await emailService.SendPasswordResetEmailAsync(result.Email!, resetLink, ct);
+            var email = result.Email!;
+            await jobQueue.EnqueueAsync(async (sp, ct) =>
+            {
+                var emailService = sp.GetRequiredService<IEmailService>();
+                await emailService.SendPasswordResetEmailAsync(email, resetLink, ct);
+            }, ct);
         }
 
         return Ok(new { message = "If an account with that email exists, a reset link has been sent." });

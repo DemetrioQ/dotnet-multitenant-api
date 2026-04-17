@@ -5,7 +5,11 @@ using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.Tenants.Commands.CreateTenant
 {
-    public class CreateTenantHandler(IRepository<Tenant> tenantRepo) : IRequestHandler<CreateTenantCommand, CreateTenantResult>
+    public class CreateTenantHandler(
+        IRepository<Tenant> tenantRepo,
+        IRepository<TenantOnboardingStatus> onboardingRepo,
+        IRepository<TenantSettings> settingsRepo
+        ) : IRequestHandler<CreateTenantCommand, CreateTenantResult>
     {
         public async Task<CreateTenantResult> Handle(CreateTenantCommand request, CancellationToken ct)
         {
@@ -13,9 +17,15 @@ namespace SaasApi.Application.Features.Tenants.Commands.CreateTenant
             if (existing.Any())
                 throw new ConflictException("A tenant with this slug already exists.");
 
-
             var tenant = Tenant.Create(request.Name, request.Slug);
             await tenantRepo.AddAsync(tenant, ct);
+
+            var onboarding = TenantOnboardingStatus.Create(tenant.Id);
+            await onboardingRepo.AddAsync(onboarding, ct);
+
+            var settings = TenantSettings.Create(tenant.Id);
+            await settingsRepo.AddAsync(settings, ct);
+
             await tenantRepo.SaveChangesAsync(ct);
 
             return new CreateTenantResult(tenant.Id);

@@ -1,17 +1,30 @@
-﻿using MediatR;
+using MediatR;
+using SaasApi.Application.Common.Models;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.Tenants.Queries.GetTenants
 {
     public class GetTenantsHandler(
-        IRepository<Tenant> tenantRepo
-        ) : IRequestHandler<GetTenantsQuery, IReadOnlyList<TenantDto>>
+        IRepository<Tenant> tenantRepo,
+        IRepository<TenantSettings> settingsRepo)
+        : IRequestHandler<GetTenantsQuery, PagedResult<TenantDto>>
     {
-        public async Task<IReadOnlyList<TenantDto>> Handle(GetTenantsQuery request, CancellationToken ct)
+        public async Task<PagedResult<TenantDto>> Handle(GetTenantsQuery request, CancellationToken ct)
         {
-            var tenants = await tenantRepo.GetAllAsync(ct);
-            return tenants.Select(TenantDto.FromEntity).ToList();
+            int skip = (request.Page - 1) * request.PageSize;
+            var tenants = await tenantRepo.GetPagedAsync(skip, request.PageSize, ct);
+            int totalCount = await tenantRepo.CountAsync(ct);
+
+            var allSettings = await settingsRepo.FindGlobalAsync(_ => true, ct);
+            var settingsMap = allSettings.ToDictionary(s => s.TenantId);
+
+            var dtos = tenants
+                .Where(t => settingsMap.ContainsKey(t.Id))
+                .Select(t => TenantDto.FromEntities(t, settingsMap[t.Id]))
+                .ToList();
+
+            return new PagedResult<TenantDto>(dtos, totalCount, request.Page, request.PageSize);
         }
     }
 }

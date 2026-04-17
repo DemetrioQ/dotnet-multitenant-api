@@ -1,12 +1,15 @@
-﻿using MediatR;
+using MediatR;
 using SaasApi.Application.Common.Exceptions;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Users.Queries;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.Users.Commands.UpdateUserRole
 {
-    public class UpdateUserRoleHandler(IRepository<User> userRepo) : IRequestHandler<UpdateUserRoleCommand, UserDto>
+    public class UpdateUserRoleHandler(
+        IRepository<User> userRepo,
+        IAuditService auditService) : IRequestHandler<UpdateUserRoleCommand, UserDto>
     {
         public async Task<UserDto> Handle(UpdateUserRoleCommand request, CancellationToken ct)
         {
@@ -18,6 +21,8 @@ namespace SaasApi.Application.Features.Users.Commands.UpdateUserRole
             user.UpdateRole(request.Role);
             userRepo.Update(user);
             await userRepo.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("user.role_updated", "User", user.Id, $"Role changed to {request.Role}", ct);
 
             return UserDto.FromEntity(user);
         }

@@ -12,14 +12,14 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Register_Returns201()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co", slug = "auth-co" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co", slug = "auth-co" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        var response = await Client.PostAsJsonAsync("/api/auth/register", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "user@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -28,21 +28,21 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Register_DuplicateEmail_Returns409()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 2", slug = "auth-co-2" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 2", slug = "auth-co-2" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "dupe@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
-        var response = await Client.PostAsJsonAsync("/api/auth/register", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant.TenantId,
             email = "dupe@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -51,17 +51,17 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Login_InvalidPassword_Returns401()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 3", slug = "auth-co-3" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 3", slug = "auth-co-3" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "login@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
-        var response = await Client.PostAsJsonAsync("/api/auth/login", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-3",
             email = "login@authco.com",
@@ -74,18 +74,18 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Login_ValidCredentials_ReturnsTokenAndCookie()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 4", slug = "auth-co-4" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 4", slug = "auth-co-4" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "valid@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
         await VerifyUserEmailAsync("valid@authco.com");
 
-        var response = await Client.PostAsJsonAsync("/api/auth/login", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-4",
             email = "valid@authco.com",
@@ -105,18 +105,18 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     public async Task RefreshToken_ReturnsNewToken()
     {
         // Arrange — create tenant, register, login (cookie stored automatically by CookieContainerHandler)
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 5", slug = "auth-co-5" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 5", slug = "auth-co-5" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "refresh@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
         await VerifyUserEmailAsync("refresh@authco.com");
 
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
+        var loginResponse = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-5",
             email = "refresh@authco.com",
@@ -126,7 +126,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
         var login = await loginResponse.Content.ReadFromJsonAsync<LoginResult>();
 
         // Act — call refresh with no body; cookie is sent automatically
-        var response = await Client.PostAsync("/api/auth/refresh", null);
+        var response = await Client.PostAsync("/api/v1/auth/refresh", null);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -141,24 +141,24 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Logout_ClearsRefreshTokenCookie()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 6", slug = "auth-co-6" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 6", slug = "auth-co-6" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "logout@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
-        await Client.PostAsJsonAsync("/api/auth/login", new
+        await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-6",
             email = "logout@authco.com",
             password = "Password1!"
         });
 
-        var response = await Client.PostAsync("/api/auth/logout", null);
+        var response = await Client.PostAsync("/api/v1/auth/logout", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -170,17 +170,17 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task Login_UnverifiedEmail_Returns403WithErrorCode()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 7", slug = "auth-co-7" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 7", slug = "auth-co-7" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "unverified@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
-        var response = await Client.PostAsJsonAsync("/api/auth/login", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-7",
             email = "unverified@authco.com",
@@ -197,14 +197,14 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task VerifyEmail_ValidToken_Returns200()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 8", slug = "auth-co-8" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 8", slug = "auth-co-8" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "toverify@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         using var scope = Factory.Services.CreateScope();
@@ -212,7 +212,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
         var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "toverify@authco.com");
         var token = db.EmailVerificationTokens.IgnoreQueryFilters().First(t => t.UserId == user.Id).Token;
 
-        var response = await Client.GetAsync($"/api/auth/verify-email?token={token}");
+        var response = await Client.GetAsync($"/api/v1/auth/verify-email?token={token}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -220,14 +220,14 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task VerifyEmail_ThenLogin_Succeeds()
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = "Auth Co 9", slug = "auth-co-9" });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Auth Co 9", slug = "auth-co-9" });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId = tenant!.TenantId,
             email = "fullflow@authco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         using var scope = Factory.Services.CreateScope();
@@ -235,9 +235,9 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
         var user = db.Users.IgnoreQueryFilters().First(u => u.Email == "fullflow@authco.com");
         var token = db.EmailVerificationTokens.IgnoreQueryFilters().First(t => t.UserId == user.Id).Token;
 
-        await Client.GetAsync($"/api/auth/verify-email?token={token}");
+        await Client.GetAsync($"/api/v1/auth/verify-email?token={token}");
 
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
+        var loginResponse = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "auth-co-9",
             email = "fullflow@authco.com",
@@ -250,7 +250,7 @@ public class AuthTests(WebAppFactory factory) : IntegrationTestBase(factory)
     [Fact]
     public async Task VerifyEmail_InvalidToken_Returns400()
     {
-        var response = await Client.GetAsync("/api/auth/verify-email?token=invalid-token-xyz");
+        var response = await Client.GetAsync("/api/v1/auth/verify-email?token=invalid-token-xyz");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

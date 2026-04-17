@@ -1,17 +1,25 @@
-﻿using MediatR;
+﻿using Asp.Versioning;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SaasApi.Application.Features.Products.Commands.CreateProduct;
 using SaasApi.Application.Features.Products.Commands.DeleteProduct;
+using SaasApi.Application.Features.Products.Commands.SetProductStatus;
 using SaasApi.Application.Features.Products.Commands.UpdateProduct;
 using SaasApi.Application.Features.Products.Queries.GetProductById;
 using SaasApi.Application.Features.Products.Queries.GetProducts;
 
 namespace SaasApi.API.Controllers
 {
+    public class SetProductStatusRequest
+    {
+        public bool IsActive { get; set; }
+    }
+
     [ApiController]
+    [ApiVersion("1.0")]
     [Authorize]
-    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     public class ProductsController(IMediator mediator) : ControllerBase
     {
         [HttpGet]
@@ -44,7 +52,16 @@ namespace SaasApi.API.Controllers
             return Ok(result);
         }
 
+        [HttpPut("{id}/status")]
+        [Authorize(Roles = "admin,super-admin")]
+        public async Task<IActionResult> SetProductStatus([FromRoute] Guid id, [FromBody] SetProductStatusRequest request, CancellationToken ct)
+        {
+            await mediator.Send(new SetProductStatusCommand(id, request.IsActive), ct);
+            return NoContent();
+        }
+
         [HttpDelete("{id}")]
+        [Authorize(Roles = "admin,super-admin")]
         public async Task<IActionResult> DeleteProduct([FromRoute] Guid id, CancellationToken ct)
         {
             await mediator.Send(new DeleteProductCommand(id), ct);

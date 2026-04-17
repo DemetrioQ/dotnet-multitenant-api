@@ -26,6 +26,7 @@ public class Tenant : BaseEntity
     }
 
     public void Deactivate() => IsActive = false;
+    public void Activate() => IsActive = true;
 
     public void UpdateName(string name) => Name = name;
 

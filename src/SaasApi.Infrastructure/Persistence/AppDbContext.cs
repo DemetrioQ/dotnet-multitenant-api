@@ -14,6 +14,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<Product> Products => Set<Product>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<TenantOnboardingStatus> TenantOnboardingStatuses => Set<TenantOnboardingStatus>();
+    public DbSet<TenantSettings> TenantSettings => Set<TenantSettings>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +38,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         modelBuilder.Entity<PasswordResetToken>()
             .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<TenantOnboardingStatus>()
+            .HasQueryFilter(s => s.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<TenantSettings>()
+            .HasQueryFilter(s => s.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<Invitation>()
+            .HasQueryFilter(i => i.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<UserProfile>()
+            .HasQueryFilter(p => p.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<AuditLogEntry>()
+            .HasQueryFilter(a => a.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

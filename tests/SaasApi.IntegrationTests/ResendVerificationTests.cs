@@ -13,14 +13,14 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
     [Fact]
     public async Task ResendVerification_UnverifiedUser_Returns200AndSendsNewToken()
     {
-        await Client.PostAsJsonAsync("/api/tenants", new { name = "Resend Co 1", slug = "resend-co-1" });
+        await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Resend Co 1", slug = "resend-co-1" });
         var tenantId = await GetTenantIdAsync("resend-co-1");
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId,
             email = "resend1@resendco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         // Wait to clear the 2-minute cooldown by backdating the token
@@ -34,7 +34,7 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
             await db.SaveChangesAsync();
         }
 
-        var response = await Client.PostAsJsonAsync("/api/auth/resend-verification", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/resend-verification", new
         {
             slug = "resend-co-1",
             email = "resend1@resendco.com"
@@ -53,14 +53,14 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
     [Fact]
     public async Task ResendVerification_WithinCooldown_Returns200ButNoNewToken()
     {
-        await Client.PostAsJsonAsync("/api/tenants", new { name = "Resend Co 2", slug = "resend-co-2" });
+        await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Resend Co 2", slug = "resend-co-2" });
         var tenantId = await GetTenantIdAsync("resend-co-2");
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId,
             email = "resend2@resendco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         string originalToken;
@@ -72,7 +72,7 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
         }
 
         // Request within cooldown (token was just created by registration)
-        var response = await Client.PostAsJsonAsync("/api/auth/resend-verification", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/resend-verification", new
         {
             slug = "resend-co-2",
             email = "resend2@resendco.com"
@@ -91,14 +91,14 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
     [Fact]
     public async Task ResendVerification_AlreadyVerifiedUser_Returns200Silently()
     {
-        await Client.PostAsJsonAsync("/api/tenants", new { name = "Resend Co 3", slug = "resend-co-3" });
+        await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Resend Co 3", slug = "resend-co-3" });
         var tenantId = await GetTenantIdAsync("resend-co-3");
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId,
             email = "resend3@resendco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
         using (var scope = Factory.Services.CreateScope())
@@ -109,7 +109,7 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
             await db.SaveChangesAsync();
         }
 
-        var response = await Client.PostAsJsonAsync("/api/auth/resend-verification", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/resend-verification", new
         {
             slug = "resend-co-3",
             email = "resend3@resendco.com"
@@ -121,9 +121,9 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
     [Fact]
     public async Task ResendVerification_UnknownEmail_Returns200Silently()
     {
-        await Client.PostAsJsonAsync("/api/tenants", new { name = "Resend Co 4", slug = "resend-co-4" });
+        await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Resend Co 4", slug = "resend-co-4" });
 
-        var response = await Client.PostAsJsonAsync("/api/auth/resend-verification", new
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/resend-verification", new
         {
             slug = "resend-co-4",
             email = "nobody@resendco.com"
@@ -135,17 +135,17 @@ public class ResendVerificationTests(WebAppFactory factory) : IntegrationTestBas
     [Fact]
     public async Task Login_UnverifiedEmail_CanResendAtIsWithinCooldownWindow()
     {
-        await Client.PostAsJsonAsync("/api/tenants", new { name = "Resend Co 5", slug = "resend-co-5" });
+        await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Resend Co 5", slug = "resend-co-5" });
         var tenantId = await GetTenantIdAsync("resend-co-5");
 
-        await Client.PostAsJsonAsync("/api/auth/register", new
+        await Client.PostAsJsonAsync("/api/v1/auth/register", new
         {
             tenantId,
             email = "resend5@resendco.com",
-            password = "Password1!"
+            password = "Password1!", firstName = "Test", lastName = "User"
         });
 
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", new
+        var loginResponse = await Client.PostAsJsonAsync("/api/v1/auth/login", new
         {
             slug = "resend-co-5",
             email = "resend5@resendco.com",

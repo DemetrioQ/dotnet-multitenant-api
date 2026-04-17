@@ -12,12 +12,14 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
     private async Task<(Guid tenantId, string memberToken, string adminToken)> SetupTenantWithUsersAsync(
         string tenantName, string slug, string memberEmail, string adminEmail)
     {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/tenants", new { name = tenantName, slug });
+        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = tenantName, slug });
         var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
         var tenantId = tenant!.TenantId;
 
+        // Register admin first — first user in a tenant automatically gets the admin role
+        var adminToken = await GetAuthTokenAsync(Client, tenantId, slug, adminEmail);
+        // Register member second — any subsequent user gets the member role
         var memberToken = await GetAuthTokenAsync(Client, tenantId, slug, memberEmail);
-        var adminToken = await CreateAdminAsync(tenantId, slug, adminEmail);
 
         return (tenantId, memberToken, adminToken);
     }
@@ -32,7 +34,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, memberToken);
 
-        var response = await Client.PutAsJsonAsync($"/api/tenants/{tenantId}", new { name = "Hacked Name" });
+        var response = await Client.PutAsJsonAsync($"/api/v1/tenants/{tenantId}", new { name = "Hacked Name" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -45,7 +47,14 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, adminToken);
 
-        var response = await Client.PutAsJsonAsync($"/api/tenants/{tenantId}", new { name = "Updated Name" });
+        var response = await Client.PutAsJsonAsync($"/api/v1/tenants/{tenantId}", new
+        {
+            name = "Updated Name",
+            timezone = "UTC",
+            currency = "USD",
+            supportEmail = (string?)null,
+            websiteUrl = (string?)null
+        });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -58,7 +67,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, memberToken);
 
-        var response = await Client.DeleteAsync($"/api/tenants/{tenantId}");
+        var response = await Client.DeleteAsync($"/api/v1/tenants/{tenantId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -71,7 +80,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, adminToken);
 
-        var response = await Client.DeleteAsync($"/api/tenants/{tenantId}");
+        var response = await Client.DeleteAsync($"/api/v1/tenants/{tenantId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -86,7 +95,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, memberToken);
 
-        var response = await Client.PutAsJsonAsync($"/api/users/{Guid.NewGuid()}/role", new { role = "admin" });
+        var response = await Client.PutAsJsonAsync($"/api/v1/users/{Guid.NewGuid()}/role", new { role = "admin" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -99,7 +108,7 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         SetTenantContext(Client, memberToken);
 
-        var response = await Client.DeleteAsync($"/api/users/{Guid.NewGuid()}");
+        var response = await Client.DeleteAsync($"/api/v1/users/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -112,10 +121,10 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
 
         // Get the member's id via users list
         SetTenantContext(Client, adminToken);
-        var users = await Client.GetFromJsonAsync<List<UserResult>>("/api/users");
+        var users = (await Client.GetFromJsonAsync<PagedResult<UserResult>>("/api/v1/users"))!.Items.ToList();
         var member = users!.First(u => u.Email == "member-g@role.com");
 
-        var response = await Client.DeleteAsync($"/api/users/{member.Id}");
+        var response = await Client.DeleteAsync($"/api/v1/users/{member.Id}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -127,13 +136,14 @@ public class RoleAuthorizationTests(WebAppFactory factory) : IntegrationTestBase
             "Role Test H", "role-h", "member-h@role.com", "admin-h@role.com");
 
         SetTenantContext(Client, adminToken);
-        var users = await Client.GetFromJsonAsync<List<UserResult>>("/api/users");
+        var users = (await Client.GetFromJsonAsync<PagedResult<UserResult>>("/api/v1/users"))!.Items.ToList();
         var member = users!.First(u => u.Email == "member-h@role.com");
 
-        var response = await Client.PutAsJsonAsync($"/api/users/{member.Id}/role", new { role = "admin" });
+        var response = await Client.PutAsJsonAsync($"/api/v1/users/{member.Id}/role", new { role = "admin" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private record UserResult(Guid Id, string Email, string Role, bool IsActive);
+    private record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
 }
