@@ -1,5 +1,7 @@
 using SaasApi.API.Extensions;
 using SaasApi.API.Middleware;
+using SaasApi.API.OpenApi;
+using Scalar.AspNetCore;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -21,7 +23,11 @@ builder.Services
     .AddRateLimiting();
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(opts =>
+{
+    opts.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    opts.AddDocumentTransformer<ApiVersionPathTransformer>();
+});
 
 builder.Services.AddCors(options =>
 {
@@ -36,7 +42,15 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
+    app.MapScalarApiReference(opts =>
+    {
+        opts.Title = "SaaS API";
+        opts.Theme = ScalarTheme.Purple;
+        opts.DefaultHttpClient = new(ScalarTarget.JavaScript, ScalarClient.Fetch);
+    });
+}
 
 app.UseExceptionHandler();
 app.UseCors("Frontend");
