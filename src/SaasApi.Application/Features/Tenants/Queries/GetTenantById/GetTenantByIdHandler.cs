@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Caching.Memory;
 using SaasApi.Application.Common.Exceptions;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
@@ -9,6 +10,7 @@ namespace SaasApi.Application.Features.Tenants.Queries.GetTenantById
     public class GetTenantByIdHandler(
         IRepository<Tenant> tenantRepo,
         IRepository<TenantSettings> settingsRepo,
+        IStoreUrlBuilder storeUrlBuilder,
         IMemoryCache cache)
         : IRequestHandler<GetTenantByIdQuery, TenantDto>
     {
@@ -26,7 +28,7 @@ namespace SaasApi.Application.Features.Tenants.Queries.GetTenantById
             if (settings is null)
                 throw new NotFoundException("Tenant settings not found");
 
-            var dto = TenantDto.FromEntities(tenant, settings);
+            var dto = TenantDto.FromEntities(tenant, settings, storeUrlBuilder.BuildUrl(tenant.Slug));
             cache.Set(cacheKey, dto, TimeSpan.FromMinutes(5));
 
             return dto;

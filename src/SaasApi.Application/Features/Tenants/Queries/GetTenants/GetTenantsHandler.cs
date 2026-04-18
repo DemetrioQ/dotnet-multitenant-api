@@ -1,4 +1,5 @@
 using MediatR;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Common.Models;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
@@ -7,7 +8,8 @@ namespace SaasApi.Application.Features.Tenants.Queries.GetTenants
 {
     public class GetTenantsHandler(
         IRepository<Tenant> tenantRepo,
-        IRepository<TenantSettings> settingsRepo)
+        IRepository<TenantSettings> settingsRepo,
+        IStoreUrlBuilder storeUrlBuilder)
         : IRequestHandler<GetTenantsQuery, PagedResult<TenantDto>>
     {
         public async Task<PagedResult<TenantDto>> Handle(GetTenantsQuery request, CancellationToken ct)
@@ -21,7 +23,7 @@ namespace SaasApi.Application.Features.Tenants.Queries.GetTenants
 
             var dtos = tenants
                 .Where(t => settingsMap.ContainsKey(t.Id))
-                .Select(t => TenantDto.FromEntities(t, settingsMap[t.Id]))
+                .Select(t => TenantDto.FromEntities(t, settingsMap[t.Id], storeUrlBuilder.BuildUrl(t.Slug)))
                 .ToList();
 
             return new PagedResult<TenantDto>(dtos, totalCount, request.Page, request.PageSize);

@@ -12,6 +12,7 @@ namespace SaasApi.Application.Features.Tenants.Commands.UpdateTenant
         IRepository<Tenant> tenantRepo,
         IRepository<TenantSettings> settingsRepo,
         IAuditService auditService,
+        IStoreUrlBuilder storeUrlBuilder,
         IMemoryCache cache)
         : IRequestHandler<UpdateTenantCommand, TenantDto>
     {
@@ -36,7 +37,7 @@ namespace SaasApi.Application.Features.Tenants.Commands.UpdateTenant
 
             await auditService.LogAsync("tenant.updated", "Tenant", tenant.Id, ct: ct);
 
-            return TenantDto.FromEntities(tenant, settings);
+            return TenantDto.FromEntities(tenant, settings, storeUrlBuilder.BuildUrl(tenant.Slug));
         }
     }
 }

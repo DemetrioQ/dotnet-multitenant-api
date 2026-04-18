@@ -61,6 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentCustomerService, CurrentCustomerService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IStoreUrlBuilder, StoreUrlBuilder>();
 
         var resendApiKey = config["Resend:ApiKey"];
         if (!string.IsNullOrWhiteSpace(resendApiKey))
