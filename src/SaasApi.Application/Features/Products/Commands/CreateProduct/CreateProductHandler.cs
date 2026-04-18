@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Caching.Memory;
+using SaasApi.Application.Common;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -22,7 +23,24 @@ namespace SaasApi.Application.Features.Products.Commands.CreateProduct
             if (existing.Any())
                 throw new ConflictException("Product with this name already exists in this tenant.");
 
-            var product = Product.Create(currentTenantService.TenantId, request.Name, request.Description, request.Price, request.Stock);
+            var slug = await ResolveUniqueSlugAsync(request.Slug, request.Name, productRepo, ct);
+
+            if (!string.IsNullOrWhiteSpace(request.Sku))
+            {
+                var skuClash = await productRepo.FindAsync(p => p.Sku == request.Sku, ct);
+                if (skuClash.Any())
+                    throw new ConflictException("Product with this SKU already exists in this tenant.");
+            }
+
+            var product = Product.Create(
+                currentTenantService.TenantId,
+                request.Name,
+                slug,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.ImageUrl,
+                request.Sku);
             await productRepo.AddAsync(product);
 
             var statuses = await onboardingRepo.FindAsync(_ => true, ct);
@@ -40,6 +58,29 @@ namespace SaasApi.Application.Features.Products.Commands.CreateProduct
             await auditService.LogAsync("product.created", "Product", product.Id, $"Created {request.Name}", ct);
 
             return new CreateProductResult(product.Id);
+        }
+
+        private static async Task<string> ResolveUniqueSlugAsync(
+            string? requested,
+            string fallbackName,
+            IRepository<Product> productRepo,
+            CancellationToken ct)
+        {
+            var baseSlug = !string.IsNullOrWhiteSpace(requested)
+                ? requested!
+                : SlugGenerator.Slugify(fallbackName);
+
+            if (string.IsNullOrWhiteSpace(baseSlug))
+                baseSlug = "product";
+
+            var candidate = baseSlug;
+            var suffix = 2;
+            while ((await productRepo.FindAsync(p => p.Slug == candidate, ct)).Any())
+            {
+                candidate = $"{baseSlug}-{suffix}";
+                suffix++;
+            }
+            return candidate;
         }
     }
 }

@@ -47,7 +47,15 @@ namespace SaasApi.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct([FromRoute] Guid id, [FromBody] UpdateProductRequest request, CancellationToken ct)
         {
-            UpdateProductCommand command = new UpdateProductCommand(id, request.Name, request.Description, request.Price, request.Stock);
+            UpdateProductCommand command = new UpdateProductCommand(
+                id,
+                request.Name,
+                request.Description,
+                request.Price,
+                request.Stock,
+                request.Slug,
+                request.ImageUrl,
+                request.Sku);
             var result = await mediator.Send(command, ct);
             return Ok(result);
         }

@@ -5,4 +5,5 @@ namespace SaasApi.Application.Common.Interfaces;
 public interface IJwtTokenService
 {
     string GenerateToken(User user);
+    string GenerateToken(Customer customer);
 }
