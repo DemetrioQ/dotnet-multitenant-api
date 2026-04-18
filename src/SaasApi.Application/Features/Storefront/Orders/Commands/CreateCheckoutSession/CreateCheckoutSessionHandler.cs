@@ -86,14 +86,20 @@ public class CreateCheckoutSessionHandler(
             productsById[ci.ProductId].Price,
             ci.Quantity)).ToList();
 
+        // Substitute {ORDER_ID} / {ORDER_NUMBER} placeholders before sending to the payment
+        // provider. The frontend can't do this itself because it doesn't know the ids until
+        // the response comes back — so it puts the placeholders in and we fill them in here.
+        var successUrl = SubstituteOrderPlaceholders(request.SuccessUrl, order);
+        var cancelUrl = SubstituteOrderPlaceholders(request.CancelUrl, order);
+
         var session = await paymentService.CreateSessionAsync(new CreatePaymentSessionRequest(
             order.Id,
             order.Number,
             currency,
             paymentLines,
             customer.Email,
-            request.SuccessUrl,
-            request.CancelUrl), ct);
+            successUrl,
+            cancelUrl), ct);
 
         order.AttachPaymentSession(session.Provider, session.SessionId);
         // Don't call orderRepo.Update — the order is already in Added state; mutations are
@@ -113,4 +119,9 @@ public class CreateCheckoutSessionHandler(
 
     private static string GenerateNumber() =>
         "ORD-" + Guid.NewGuid().ToString("N").ToUpperInvariant().Substring(0, 10);
+
+    private static string SubstituteOrderPlaceholders(string url, Order order) =>
+        url
+            .Replace("{ORDER_ID}", order.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{ORDER_NUMBER}", order.Number, StringComparison.OrdinalIgnoreCase);
 }
