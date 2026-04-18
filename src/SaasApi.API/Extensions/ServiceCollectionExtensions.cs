@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using SaasApi.API.Middleware;
 using SaasApi.Application.Common.Behaviors;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Application.Common.Settings;
 using SaasApi.Domain.Interfaces;
 using SaasApi.Infrastructure.Persistence;
 using SaasApi.Infrastructure.Repositories;
@@ -59,7 +60,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
-        services.AddScoped<IEmailService, EmailService>();
+
+        var resendApiKey = config["Resend:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(resendApiKey))
+        {
+            services.Configure<ResendSettings>(config.GetSection("Resend"));
+            services.AddHttpClient<IEmailService, ResendEmailService>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.resend.com/");
+            });
+        }
+        else
+        {
+            services.AddScoped<IEmailService, EmailService>();
+        }
+
         services.AddScoped<IAuditService, AuditService>();
         services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
         services.AddHostedService<BackgroundJobProcessor>();

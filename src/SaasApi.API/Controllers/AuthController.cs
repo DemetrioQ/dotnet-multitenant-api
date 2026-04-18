@@ -1,8 +1,10 @@
 using Asp.Versioning;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Application.Features.Users.Commands.ChangePassword;
 using SaasApi.Application.Features.Users.Commands.ForgotPassword;
 using SaasApi.Application.Features.Users.Commands.ResendVerification;
 using SaasApi.Application.Features.Users.Commands.LoginUser;
@@ -114,6 +116,15 @@ public class AuthController(
     {
         await mediator.Send(command, ct);
         return Ok(new { message = "Password has been reset successfully." });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordCommand command, CancellationToken ct)
+    {
+        await mediator.Send(command, ct);
+        Response.Cookies.Delete("refreshToken");
+        return NoContent();
     }
 
     [HttpPost("logout")]
