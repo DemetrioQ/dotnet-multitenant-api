@@ -1,6 +1,8 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Application.Common.Inventory;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
@@ -13,7 +15,9 @@ public class CheckoutHandler(
     IRepository<Order> orderRepo,
     IRepository<OrderItem> orderItemRepo,
     ICurrentTenantService currentTenant,
-    ICurrentCustomerService currentCustomer)
+    ICurrentCustomerService currentCustomer,
+    IBackgroundJobQueue jobQueue,
+    IConfiguration config)
     : IRequestHandler<CheckoutCommand, OrderDto>
 {
     public async Task<OrderDto> Handle(CheckoutCommand request, CancellationToken ct)
@@ -30,7 +34,6 @@ public class CheckoutHandler(
         var products = await productRepo.FindAsync(p => productIds.Contains(p.Id), ct);
         var productsById = products.ToDictionary(p => p.Id);
 
-        // Validate every line before mutating anything.
         foreach (var ci in cartItems)
         {
             if (!productsById.TryGetValue(ci.ProductId, out var p) || !p.IsActive)
@@ -42,8 +45,6 @@ public class CheckoutHandler(
         var subtotal = cartItems.Sum(ci => productsById[ci.ProductId].Price * ci.Quantity);
 
         var shipping = Map(request.ShippingAddress);
-        // Always create a distinct instance — EF's owned-entity tracking rejects sharing one
-        // Address between two owned navigations even when records compare equal by value.
         var billing = Map(request.BillingAddress ?? request.ShippingAddress);
 
         var order = Order.Create(
@@ -56,11 +57,14 @@ public class CheckoutHandler(
         await orderRepo.AddAsync(order, ct);
 
         var orderItems = new List<OrderItem>(cartItems.Count);
+        var stockChanges = new List<(Product, int)>(cartItems.Count);
         foreach (var ci in cartItems)
         {
             var p = productsById[ci.ProductId];
+            var previousStock = p.Stock;
             p.DecrementStock(ci.Quantity);
             productRepo.Update(p);
+            stockChanges.Add((p, previousStock));
 
             var oi = OrderItem.Create(currentTenant.TenantId, order.Id, p, ci.Quantity);
             await orderItemRepo.AddAsync(oi, ct);
@@ -69,8 +73,9 @@ public class CheckoutHandler(
             cartItemRepo.Remove(ci);
         }
 
-        // Single SaveChanges commits everything atomically (EF wraps it in a transaction).
         await orderRepo.SaveChangesAsync(ct);
+
+        await LowStockAlerter.CheckAsync(jobQueue, config, stockChanges, ct);
 
         return OrderDto.FromEntity(order, orderItems);
     }

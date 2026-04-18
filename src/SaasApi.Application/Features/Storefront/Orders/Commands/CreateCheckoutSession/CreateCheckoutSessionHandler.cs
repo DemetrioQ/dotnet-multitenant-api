@@ -1,6 +1,8 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Application.Common.Inventory;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
@@ -16,7 +18,9 @@ public class CreateCheckoutSessionHandler(
     IRepository<TenantSettings> settingsRepo,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
-    IPaymentService paymentService)
+    IPaymentService paymentService,
+    IBackgroundJobQueue jobQueue,
+    IConfiguration config)
     : IRequestHandler<CreateCheckoutSessionCommand, CreateCheckoutSessionResult>
 {
     public async Task<CreateCheckoutSessionResult> Handle(CreateCheckoutSessionCommand request, CancellationToken ct)
@@ -58,11 +62,14 @@ public class CreateCheckoutSessionHandler(
             billing);
         await orderRepo.AddAsync(order, ct);
 
+        var stockChanges = new List<(Product, int)>(cartItems.Count);
         foreach (var ci in cartItems)
         {
             var p = productsById[ci.ProductId];
+            var previousStock = p.Stock;
             p.DecrementStock(ci.Quantity);
             productRepo.Update(p);
+            stockChanges.Add((p, previousStock));
 
             var oi = OrderItem.Create(currentTenant.TenantId, order.Id, p, ci.Quantity);
             await orderItemRepo.AddAsync(oi, ct);
@@ -93,6 +100,8 @@ public class CreateCheckoutSessionHandler(
         // tracked automatically. Calling Update flips it to Modified and breaks the insert.
 
         await orderRepo.SaveChangesAsync(ct);
+
+        await LowStockAlerter.CheckAsync(jobQueue, config, stockChanges, ct);
 
         return new CreateCheckoutSessionResult(
             order.Id,
