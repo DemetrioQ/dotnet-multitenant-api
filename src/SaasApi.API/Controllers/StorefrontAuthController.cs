@@ -21,8 +21,7 @@ namespace SaasApi.API.Controllers;
 public class StorefrontAuthController(
     IMediator mediator,
     IWebHostEnvironment env,
-    IBackgroundJobQueue jobQueue,
-    IConfiguration config) : ControllerBase
+    IBackgroundJobQueue jobQueue) : ControllerBase
 {
     private const string CustomerRefreshCookie = "customerRefreshToken";
 
@@ -31,7 +30,7 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        var verificationLink = BuildStorefrontUrl($"/verify-email?token={result.EmailVerificationToken}");
+        var verificationLink = $"{result.StoreUrl.TrimEnd('/')}/verify-email?token={result.EmailVerificationToken}";
         var email = command.Email;
         var storeName = result.StoreName;
         await jobQueue.EnqueueAsync(async (sp, jobCt) =>
@@ -84,9 +83,9 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        if (result.Token is not null && result.StoreName is not null)
+        if (result.Token is not null && result.StoreName is not null && result.StoreUrl is not null)
         {
-            var link = BuildStorefrontUrl($"/verify-email?token={result.Token}");
+            var link = $"{result.StoreUrl.TrimEnd('/')}/verify-email?token={result.Token}";
             var email = command.Email;
             var storeName = result.StoreName;
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
@@ -105,9 +104,9 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        if (result.ResetToken is not null && result.StoreName is not null)
+        if (result.ResetToken is not null && result.StoreName is not null && result.StoreUrl is not null)
         {
-            var link = BuildStorefrontUrl($"/reset-password?token={result.ResetToken}");
+            var link = $"{result.StoreUrl.TrimEnd('/')}/reset-password?token={result.ResetToken}";
             var email = result.Email!;
             var storeName = result.StoreName;
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
@@ -136,17 +135,5 @@ public class StorefrontAuthController(
             SameSite = SameSiteMode.Strict,
             Expires = expiresAt
         });
-    }
-
-    private string BuildStorefrontUrl(string pathAndQuery)
-    {
-        // Build a link that lands on the same storefront host the request came in on,
-        // so the customer ends up back at their tenant's store.
-        var scheme = Request.Scheme;
-        var host = Request.Host.Value;
-        var configured = config["App:StorefrontUrl"];
-        if (!string.IsNullOrWhiteSpace(configured))
-            return $"{configured.TrimEnd('/')}{pathAndQuery}";
-        return $"{scheme}://{host}{pathAndQuery}";
     }
 }

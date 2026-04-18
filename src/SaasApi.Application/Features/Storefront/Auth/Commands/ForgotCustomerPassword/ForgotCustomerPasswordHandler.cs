@@ -9,17 +9,18 @@ public class ForgotCustomerPasswordHandler(
     IRepository<Customer> customerRepo,
     IRepository<CustomerPasswordResetToken> resetRepo,
     IRepository<Tenant> tenantRepo,
-    ICurrentTenantService currentTenantService)
+    ICurrentTenantService currentTenantService,
+    IStoreUrlBuilder storeUrlBuilder)
     : IRequestHandler<ForgotCustomerPasswordCommand, ForgotCustomerPasswordResult>
 {
     public async Task<ForgotCustomerPasswordResult> Handle(ForgotCustomerPasswordCommand request, CancellationToken ct)
     {
         if (!currentTenantService.IsResolved)
-            return new ForgotCustomerPasswordResult(null, null, null);
+            return new ForgotCustomerPasswordResult(null, null, null, null);
 
         var customers = await customerRepo.FindAsync(c => c.Email == request.Email, ct);
         if (!customers.Any() || !customers.First().IsActive)
-            return new ForgotCustomerPasswordResult(null, null, null);
+            return new ForgotCustomerPasswordResult(null, null, null, null);
 
         var customer = customers.First();
 
@@ -28,6 +29,13 @@ public class ForgotCustomerPasswordHandler(
         await resetRepo.SaveChangesAsync(ct);
 
         var tenant = await tenantRepo.GetByIdAsync(customer.TenantId, ct);
-        return new ForgotCustomerPasswordResult(customer.Email, reset.Token, tenant?.Name);
+        if (tenant is null)
+            return new ForgotCustomerPasswordResult(null, null, null, null);
+
+        return new ForgotCustomerPasswordResult(
+            customer.Email,
+            reset.Token,
+            tenant.Name,
+            storeUrlBuilder.BuildUrl(tenant.Slug));
     }
 }

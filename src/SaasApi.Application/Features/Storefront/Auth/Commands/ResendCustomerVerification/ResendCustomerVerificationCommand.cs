@@ -4,4 +4,4 @@ namespace SaasApi.Application.Features.Storefront.Auth.Commands.ResendCustomerVe
 
 public record ResendCustomerVerificationCommand(string Email) : IRequest<ResendCustomerVerificationResult>;
 
-public record ResendCustomerVerificationResult(string? Token, string? StoreName);
+public record ResendCustomerVerificationResult(string? Token, string? StoreName, string? StoreUrl);

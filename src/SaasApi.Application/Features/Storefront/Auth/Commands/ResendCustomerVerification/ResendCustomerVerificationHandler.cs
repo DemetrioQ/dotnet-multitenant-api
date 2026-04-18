@@ -9,7 +9,8 @@ public class ResendCustomerVerificationHandler(
     IRepository<Customer> customerRepo,
     IRepository<CustomerEmailVerificationToken> verificationRepo,
     IRepository<Tenant> tenantRepo,
-    ICurrentTenantService currentTenantService)
+    ICurrentTenantService currentTenantService,
+    IStoreUrlBuilder storeUrlBuilder)
     : IRequestHandler<ResendCustomerVerificationCommand, ResendCustomerVerificationResult>
 {
     private const int CooldownMinutes = 2;
@@ -17,11 +18,11 @@ public class ResendCustomerVerificationHandler(
     public async Task<ResendCustomerVerificationResult> Handle(ResendCustomerVerificationCommand request, CancellationToken ct)
     {
         if (!currentTenantService.IsResolved)
-            return new ResendCustomerVerificationResult(null, null);
+            return new ResendCustomerVerificationResult(null, null, null);
 
         var customers = await customerRepo.FindAsync(c => c.Email == request.Email, ct);
         if (!customers.Any() || !customers.First().IsActive || customers.First().IsEmailVerified)
-            return new ResendCustomerVerificationResult(null, null);
+            return new ResendCustomerVerificationResult(null, null, null);
 
         var customer = customers.First();
 
@@ -32,7 +33,7 @@ public class ResendCustomerVerificationHandler(
         {
             var cooldownExpiry = existing.CreatedAt.AddMinutes(CooldownMinutes);
             if (cooldownExpiry > DateTime.UtcNow)
-                return new ResendCustomerVerificationResult(null, null);
+                return new ResendCustomerVerificationResult(null, null, null);
 
             verificationRepo.Remove(existing);
         }
@@ -42,6 +43,12 @@ public class ResendCustomerVerificationHandler(
         await verificationRepo.SaveChangesAsync(ct);
 
         var tenant = await tenantRepo.GetByIdAsync(customer.TenantId, ct);
-        return new ResendCustomerVerificationResult(newToken.Token, tenant?.Name);
+        if (tenant is null)
+            return new ResendCustomerVerificationResult(null, null, null);
+
+        return new ResendCustomerVerificationResult(
+            newToken.Token,
+            tenant.Name,
+            storeUrlBuilder.BuildUrl(tenant.Slug));
     }
 }

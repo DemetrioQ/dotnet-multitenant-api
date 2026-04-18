@@ -18,6 +18,7 @@ public class ResendEmailService(
     public Task SendVerificationEmailAsync(string toEmail, string verificationLink, CancellationToken ct = default) =>
         SendAsync(
             toEmail,
+            fromName: null,
             "Verify your email",
             $"<p>Welcome! Please verify your email by clicking the link below:</p>" +
             $"<p><a href=\"{verificationLink}\">Verify email</a></p>" +
@@ -27,6 +28,7 @@ public class ResendEmailService(
     public Task SendPasswordResetEmailAsync(string toEmail, string resetLink, CancellationToken ct = default) =>
         SendAsync(
             toEmail,
+            fromName: null,
             "Reset your password",
             $"<p>You requested a password reset. Click the link below to choose a new password:</p>" +
             $"<p><a href=\"{resetLink}\">Reset password</a></p>" +
@@ -36,6 +38,7 @@ public class ResendEmailService(
     public Task SendInvitationEmailAsync(string toEmail, string inviteLink, CancellationToken ct = default) =>
         SendAsync(
             toEmail,
+            fromName: null,
             "You've been invited",
             $"<p>You've been invited to join a team.</p>" +
             $"<p><a href=\"{inviteLink}\">Accept invitation</a></p>",
@@ -46,6 +49,7 @@ public class ResendEmailService(
         var safeStore = WebUtility.HtmlEncode(storeName);
         return SendAsync(
             toEmail,
+            fromName: storeName,
             $"Confirm your email for {storeName}",
             $"<p>Thanks for signing up at <strong>{safeStore}</strong>!</p>" +
             $"<p>Confirm your email address to finish setting up your account:</p>" +
@@ -59,6 +63,7 @@ public class ResendEmailService(
         var safeStore = WebUtility.HtmlEncode(storeName);
         return SendAsync(
             toEmail,
+            fromName: storeName,
             $"Reset your {storeName} password",
             $"<p>We received a request to reset your password for your account at <strong>{safeStore}</strong>.</p>" +
             $"<p><a href=\"{resetLink}\">Choose a new password</a></p>" +
@@ -66,11 +71,16 @@ public class ResendEmailService(
             ct);
     }
 
-    private async Task SendAsync(string to, string subject, string html, CancellationToken ct)
+    private async Task SendAsync(string to, string? fromName, string subject, string html, CancellationToken ct)
     {
+        // Display name overrides the platform default (e.g., "Acme Widgets" instead of "SaaS API")
+        // but the sending address stays on the platform's verified domain for DMARC alignment.
+        // Strip stray angle brackets / quotes so a weird store name can't malform the From header.
+        var display = SanitizeDisplayName(fromName ?? _cfg.FromName);
+
         var payload = new
         {
-            from = $"{_cfg.FromName} <{_cfg.FromAddress}>",
+            from = $"{display} <{_cfg.FromAddress}>",
             to = new[] { to },
             subject,
             html
@@ -90,6 +100,9 @@ public class ResendEmailService(
             response.EnsureSuccessStatusCode();
         }
 
-        logger.LogInformation("Sent email via Resend. Subject={Subject} To={To}", subject, to);
+        logger.LogInformation("Sent email via Resend. From=\"{Display}\" Subject={Subject} To={To}", display, subject, to);
     }
+
+    private static string SanitizeDisplayName(string name) =>
+        name.Replace("<", "").Replace(">", "").Replace("\"", "").Trim();
 }

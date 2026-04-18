@@ -11,6 +11,7 @@ public class RegisterCustomerHandler(
     IRepository<CustomerEmailVerificationToken> verificationRepo,
     IRepository<Tenant> tenantRepo,
     ICurrentTenantService currentTenantService,
+    IStoreUrlBuilder storeUrlBuilder,
     IPasswordHasher passwordHasher)
     : IRequestHandler<RegisterCustomerCommand, RegisterCustomerResult>
 {
@@ -36,6 +37,10 @@ public class RegisterCustomerHandler(
         await verificationRepo.AddAsync(verification, ct);
         await verificationRepo.SaveChangesAsync(ct);
 
-        return new RegisterCustomerResult(customer.Id, verification.Token, tenant.Name);
+        return new RegisterCustomerResult(
+            customer.Id,
+            verification.Token,
+            tenant.Name,
+            storeUrlBuilder.BuildUrl(tenant.Slug));
     }
 }
