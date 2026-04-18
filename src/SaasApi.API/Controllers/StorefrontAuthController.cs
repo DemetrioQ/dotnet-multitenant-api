@@ -33,10 +33,11 @@ public class StorefrontAuthController(
 
         var verificationLink = BuildStorefrontUrl($"/verify-email?token={result.EmailVerificationToken}");
         var email = command.Email;
+        var storeName = result.StoreName;
         await jobQueue.EnqueueAsync(async (sp, jobCt) =>
         {
             var emailService = sp.GetRequiredService<IEmailService>();
-            await emailService.SendVerificationEmailAsync(email, verificationLink, jobCt);
+            await emailService.SendCustomerVerificationEmailAsync(email, storeName, verificationLink, jobCt);
         }, ct);
 
         return CreatedAtAction(nameof(Register), new { customerId = result.CustomerId }, new { result.CustomerId });
@@ -83,14 +84,15 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        if (result.Token is not null)
+        if (result.Token is not null && result.StoreName is not null)
         {
             var link = BuildStorefrontUrl($"/verify-email?token={result.Token}");
             var email = command.Email;
+            var storeName = result.StoreName;
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
             {
                 var emailService = sp.GetRequiredService<IEmailService>();
-                await emailService.SendVerificationEmailAsync(email, link, jobCt);
+                await emailService.SendCustomerVerificationEmailAsync(email, storeName, link, jobCt);
             }, ct);
         }
 
@@ -103,14 +105,15 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        if (result.ResetToken is not null)
+        if (result.ResetToken is not null && result.StoreName is not null)
         {
             var link = BuildStorefrontUrl($"/reset-password?token={result.ResetToken}");
             var email = result.Email!;
+            var storeName = result.StoreName;
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
             {
                 var emailService = sp.GetRequiredService<IEmailService>();
-                await emailService.SendPasswordResetEmailAsync(email, link, jobCt);
+                await emailService.SendCustomerPasswordResetEmailAsync(email, storeName, link, jobCt);
             }, ct);
         }
 

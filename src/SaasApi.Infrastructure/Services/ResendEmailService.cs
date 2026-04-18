@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
@@ -39,6 +40,31 @@ public class ResendEmailService(
             $"<p>You've been invited to join a team.</p>" +
             $"<p><a href=\"{inviteLink}\">Accept invitation</a></p>",
             ct);
+
+    public Task SendCustomerVerificationEmailAsync(string toEmail, string storeName, string verificationLink, CancellationToken ct = default)
+    {
+        var safeStore = WebUtility.HtmlEncode(storeName);
+        return SendAsync(
+            toEmail,
+            $"Confirm your email for {storeName}",
+            $"<p>Thanks for signing up at <strong>{safeStore}</strong>!</p>" +
+            $"<p>Confirm your email address to finish setting up your account:</p>" +
+            $"<p><a href=\"{verificationLink}\">Confirm my email</a></p>" +
+            $"<p>If you didn't create an account at {safeStore}, you can safely ignore this message.</p>",
+            ct);
+    }
+
+    public Task SendCustomerPasswordResetEmailAsync(string toEmail, string storeName, string resetLink, CancellationToken ct = default)
+    {
+        var safeStore = WebUtility.HtmlEncode(storeName);
+        return SendAsync(
+            toEmail,
+            $"Reset your {storeName} password",
+            $"<p>We received a request to reset your password for your account at <strong>{safeStore}</strong>.</p>" +
+            $"<p><a href=\"{resetLink}\">Choose a new password</a></p>" +
+            $"<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this message.</p>",
+            ct);
+    }
 
     private async Task SendAsync(string to, string subject, string html, CancellationToken ct)
     {

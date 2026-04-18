@@ -9,6 +9,7 @@ namespace SaasApi.Application.Features.Storefront.Auth.Commands.RegisterCustomer
 public class RegisterCustomerHandler(
     IRepository<Customer> customerRepo,
     IRepository<CustomerEmailVerificationToken> verificationRepo,
+    IRepository<Tenant> tenantRepo,
     ICurrentTenantService currentTenantService,
     IPasswordHasher passwordHasher)
     : IRequestHandler<RegisterCustomerCommand, RegisterCustomerResult>
@@ -19,6 +20,8 @@ public class RegisterCustomerHandler(
             throw new NotFoundException("Store not found.");
 
         var tenantId = currentTenantService.TenantId;
+        var tenant = await tenantRepo.GetByIdAsync(tenantId, ct)
+                     ?? throw new NotFoundException("Store not found.");
 
         var existing = await customerRepo.FindAsync(c => c.Email == request.Email, ct);
         if (existing.Any())
@@ -33,6 +36,6 @@ public class RegisterCustomerHandler(
         await verificationRepo.AddAsync(verification, ct);
         await verificationRepo.SaveChangesAsync(ct);
 
-        return new RegisterCustomerResult(customer.Id, verification.Token);
+        return new RegisterCustomerResult(customer.Id, verification.Token, tenant.Name);
     }
 }

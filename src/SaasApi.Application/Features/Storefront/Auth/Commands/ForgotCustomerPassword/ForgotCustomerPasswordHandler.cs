@@ -8,17 +8,18 @@ namespace SaasApi.Application.Features.Storefront.Auth.Commands.ForgotCustomerPa
 public class ForgotCustomerPasswordHandler(
     IRepository<Customer> customerRepo,
     IRepository<CustomerPasswordResetToken> resetRepo,
+    IRepository<Tenant> tenantRepo,
     ICurrentTenantService currentTenantService)
     : IRequestHandler<ForgotCustomerPasswordCommand, ForgotCustomerPasswordResult>
 {
     public async Task<ForgotCustomerPasswordResult> Handle(ForgotCustomerPasswordCommand request, CancellationToken ct)
     {
         if (!currentTenantService.IsResolved)
-            return new ForgotCustomerPasswordResult(null, null);
+            return new ForgotCustomerPasswordResult(null, null, null);
 
         var customers = await customerRepo.FindAsync(c => c.Email == request.Email, ct);
         if (!customers.Any() || !customers.First().IsActive)
-            return new ForgotCustomerPasswordResult(null, null);
+            return new ForgotCustomerPasswordResult(null, null, null);
 
         var customer = customers.First();
 
@@ -26,6 +27,7 @@ public class ForgotCustomerPasswordHandler(
         await resetRepo.AddAsync(reset, ct);
         await resetRepo.SaveChangesAsync(ct);
 
-        return new ForgotCustomerPasswordResult(customer.Email, reset.Token);
+        var tenant = await tenantRepo.GetByIdAsync(customer.TenantId, ct);
+        return new ForgotCustomerPasswordResult(customer.Email, reset.Token, tenant?.Name);
     }
 }
