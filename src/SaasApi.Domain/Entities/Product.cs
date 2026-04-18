@@ -51,6 +51,15 @@ namespace SaasApi.Domain.Entities
         public void UpdateImageUrl(string? imageUrl) => ImageUrl = imageUrl;
         public void UpdateSku(string? sku) => Sku = sku;
 
+        public void DecrementStock(int quantity)
+        {
+            if (quantity < 1)
+                throw new ArgumentException("Quantity must be at least 1.", nameof(quantity));
+            if (Stock < quantity)
+                throw new InvalidOperationException($"Insufficient stock for product '{Name}'. Available: {Stock}, requested: {quantity}.");
+            Stock -= quantity;
+        }
+
         public void Deactivate() => IsActive = false;
         public void Activate() => IsActive = true;
     }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SaasApi.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using SaasApi.Infrastructure.Persistence;
 namespace SaasApi.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260418181751_AddOrders")]
+    partial class AddOrders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -428,14 +431,6 @@ namespace SaasApi.Infrastructure.Migrations
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("PaymentProvider")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("PaymentSessionId")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("ShippingCity")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -485,10 +480,6 @@ namespace SaasApi.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Number")
                         .IsUnique();
-
-                    b.HasIndex("TenantId", "PaymentSessionId")
-                        .IsUnique()
-                        .HasFilter("[PaymentSessionId] IS NOT NULL");
 
                     b.ToTable("Orders");
                 });

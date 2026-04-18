@@ -22,6 +22,13 @@ builder.Services
     .AddJwtAuthentication(builder.Configuration)
     .AddRateLimiting();
 
+builder.Services.AddAuthorization(opts =>
+{
+    opts.AddPolicy("CustomerOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireClaim("sub_type", "customer"));
+});
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi(opts =>
 {

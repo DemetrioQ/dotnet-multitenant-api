@@ -23,6 +23,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<CustomerRefreshToken> CustomerRefreshTokens => Set<CustomerRefreshToken>();
     public DbSet<CustomerEmailVerificationToken> CustomerEmailVerificationTokens => Set<CustomerEmailVerificationToken>();
     public DbSet<CustomerPasswordResetToken> CustomerPasswordResetTokens => Set<CustomerPasswordResetToken>();
+    public DbSet<Cart> Carts => Set<Cart>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,6 +73,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         modelBuilder.Entity<CustomerPasswordResetToken>()
             .HasQueryFilter(t => t.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<Cart>()
+            .HasQueryFilter(c => c.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<CartItem>()
+            .HasQueryFilter(i => i.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<Order>()
+            .HasQueryFilter(o => o.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<OrderItem>()
+            .HasQueryFilter(i => i.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

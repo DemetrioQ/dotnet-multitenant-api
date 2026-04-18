@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentTenantService, CurrentTenantService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<ICurrentCustomerService, CurrentCustomerService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
 
@@ -78,6 +79,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditService, AuditService>();
         services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
         services.AddHostedService<BackgroundJobProcessor>();
+
+        var paymentsProvider = (config["Payments:Provider"] ?? "simulation").ToLowerInvariant();
+        if (paymentsProvider == "stripe")
+            services.AddScoped<IPaymentService, SaasApi.Infrastructure.Services.Payments.StripePaymentService>();
+        else
+            services.AddScoped<IPaymentService, SaasApi.Infrastructure.Services.Payments.SimulationPaymentService>();
 
         return services;
     }
