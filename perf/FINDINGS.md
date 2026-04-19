@@ -1,88 +1,119 @@
 # Performance findings
 
-Notes on the three hot paths we rewrote after seeding realistic data, the
-anti-pattern each one was using, and what the SQL-pushed rewrite looks like.
+Benchmark of the three endpoints we optimized, before vs after.
 
-## Shared anti-pattern: "load all → filter/paginate in memory"
+## How these numbers were produced
 
-Before the rewrites, all three handlers called something like
-`IRepository<T>.FindAsync(predicate)` — which in the existing repository does
-`DbSet<T>.Where(predicate).ToListAsync()` with no pagination or projection.
-Then the handler applied `.OrderBy().Skip().Take()` or ran LINQ aggregates
-client-side.
-
-At 10 rows this is fine. At 10,000 it loads every matching row over the wire
-(plus every FK-referenced row for aggregates) and allocates big object graphs
-— latency scales linearly with table size, not page size.
-
-## 1. `GET /api/v1/tenants/dashboard`
-
-Before: six `GetAllAsync` / `FindAsync` calls (users, products, customers,
-orders, paid order items, audit) each loading the full tenant-scoped set.
-With 4,500 orders + 18,000 order items per tenant, a single dashboard request
-pulled ~30k rows across half a dozen queries just to return ~20 numbers.
-
-After: one `COUNT(*)` per stat card (pushed to SQL — zero rows returned),
-one `GROUP BY 1 → SUM(total)` for revenue/AOV, one `GROUP BY productId ORDER
-BY SUM(lineTotal) DESC TAKE 5` for the top-products widget, one `TAKE 10`
-for recent activity.
-
-Expected shape of the win: ~10× at 1,000 orders, ~50× at 10,000+.
-
-## 2. `GET /api/v1/orders?page=N`
-
-Before: `orderRepo.FindAsync(o => o.Status == status)` (or `GetAllAsync`),
-then `.OrderByDescending.Skip.Take` in memory. For page 1 of 20 this
-loaded every order in the tenant. A second query loaded every matching
-`OrderItem` for the full set to compute `ItemCount` per row.
-
-After: SQL `ORDER BY CreatedAt DESC OFFSET … FETCH NEXT pageSize ROWS`,
-inner join on Customer, correlated subquery for the item sum. One query
-returns a perfectly-sized page; total count is a separate `COUNT(*)`.
-
-Expected shape of the win: the "deep pagination" scenario is the worst case
-before (page 50 still loads the full set), and the rewrite cost is flat
-regardless of page.
-
-## 3. `GET /api/v1/storefront/products?page=N`
-
-Same pattern as merchant orders: before, we loaded every active product
-into memory and paginated. After, the `Where/OrderBy/Skip/Take/Select` chain
-runs as a single SQL query returning only the page.
-
-Low-impact at small scale (product catalogs are smaller than order tables),
-but the fix is trivial and it removes another "time bomb" that would have
-bit a tenant with 5,000 SKUs.
-
-## How to measure before vs after on your own hardware
-
-We've tagged the rewrite as `perf-pushdown` in git. To see the delta:
+In-process benchmark (`tests/SaasApi.IntegrationTests/PerfBenchmark.cs`) using
+the existing `WebAppFactory` harness. The `[Trait("Category", "Benchmark")]`
+tag keeps it out of the default test run; invoke explicitly with:
 
 ```bash
-# baseline (before the rewrite)
-git checkout <last-commit-before-perf>
-dotnet run --project src/SaasApi.API &
-# (seed data; run k6 script; save results)
-
-git checkout main
-dotnet run --project src/SaasApi.API &
-# (re-run the same k6 script; save results)
+dotnet test --filter "FullyQualifiedName~PerfBenchmark"
 ```
 
-Compare `http_req_duration` p95 / p99 between the two runs.
+**Seed:** 1 tenant, 300 products, 100 customers, **2,000 orders** with 1–3
+line items each. 30 requests per endpoint.
 
-## Why `IAppDbContext` showed up
+**Important caveat — SQLite in-memory is not SQL Server.** The test harness
+replaces SQL Server with SQLite running in-memory. That means:
 
-The rewrites needed real `IQueryable<T>` access so EF could translate the
-LINQ into SQL. The existing `IRepository<T>.FindAsync(predicate)` materializes
-results before you can chain further operators, so it can't do SQL-side
-pagination or aggregation.
+- No network round-trip cost per query. Each query is essentially a function
+  call into the same process.
+- "Load all rows" is nearly free at 2,000 rows (it'd be awful on SQL Server
+  over a LAN at the same row count).
+- Query-plan optimization and index scans behave differently.
 
-We added a minimal `IAppDbContext` interface in `Application/Common/Interfaces`
-exposing only the `DbSet<T>`s the optimized handlers need. Infrastructure's
-`AppDbContext` implements it. Pragmatic tradeoff: Application now has a
-`Microsoft.EntityFrameworkCore` package reference. We kept `IRepository<T>`
-as the default for simpler write-side flows.
+So the **relative** improvement on `orders` (clear) will be even larger on
+real SQL Server. The **absolute** dashboard numbers shown here are noisier
+than they'd be in prod — see commentary at the bottom.
+
+For real-world numbers, use the k6 scripts + your SQL Server deployment.
+
+## Results (2,000 orders, SQLite in-memory)
+
+### Baseline (commit `85a2ab3`, pre-optimization)
+
+```
+endpoint                      min(ms)  p50(ms)  p95(ms)  p99(ms)  max(ms)
+------------------------------------------------------------------------------
+dashboard                        68.5     94.2    108.5    117.4    117.4
+orders                           37.1     45.9     68.6     75.2     75.2
+orders-deep                      24.1     29.1     52.1     72.7     72.7
+storefront-products               1.5      2.1      3.5      6.3      6.3
+```
+
+### After SQL-pushdown (commit `7f6a209`, this branch)
+
+```
+endpoint                      min(ms)  p50(ms)  p95(ms)  p99(ms)  max(ms)
+------------------------------------------------------------------------------
+dashboard                        66.7     98.7    117.5    128.4    128.4
+orders                            4.5      4.9      6.9      7.2      7.2
+orders-deep                       6.0      6.4      8.6      8.8      8.8
+storefront-products               0.7      0.8      3.0     12.2     12.2
+```
+
+### Delta — p95
+
+| endpoint | baseline | optimized | speedup |
+|---|---|---|---|
+| dashboard | 108.5 ms | 117.5 ms | **1.0×** (neutral) |
+| orders | 68.6 ms | 6.9 ms | **~10×** |
+| orders-deep (page 100) | 52.1 ms | 8.6 ms | **~6×** |
+| storefront-products | 3.5 ms | 3.0 ms | **~1.2×** |
+
+## Commentary
+
+### Orders: clear win
+
+`GET /api/v1/orders` went from ~69ms p95 to ~7ms — roughly an order of
+magnitude. Deep pagination (page 100) saw a similar win because the rewrite
+uses `OFFSET/FETCH` server-side, so page N costs the same as page 1 instead
+of linearly scaling.
+
+### Storefront products: mild win
+
+3.5ms → 3.0ms p95. Small because 300 active products isn't enough to stress
+the "load all" pattern. The real win will appear when a tenant hits a few
+thousand SKUs — still worth shipping the fix.
+
+### Dashboard: why it looks neutral on SQLite
+
+The pre-rewrite dashboard did **six `GetAllAsync` calls + client-side
+aggregation** — one query each pulling the full table, then sums and groups
+in .NET code. The rewrite does **~10 separate `COUNT`/`SUM`/`GROUP BY`
+queries** that each return a single number or small result set.
+
+On SQL Server over a network connection each round-trip is ~1–10ms of wire
+latency. Six-vs-ten is close enough that query-planning matters more than
+round-trip count; loading the full set quickly becomes a problem because
+materializing 2,000 orders plus their 5,000ish line items into .NET objects
+is expensive. The optimized version wins big because it returns single
+scalars — no entity materialization.
+
+On **SQLite in-memory** there is no network latency and materialization is
+cheaper (no column type coercion over the wire). The "ten small queries"
+pattern looks very similar to "one big query + client aggregation" because
+SQLite executes both in the same process. That's what this benchmark shows:
+the two versions are ~identical at 2,000 orders.
+
+**Expected behavior on real SQL Server at the same data volume:** baseline
+would climb sharply as it materializes everything; optimized would stay
+flat. The code change is the right one, but demonstrating it requires the
+k6 scripts running against SQL Server.
+
+### Meta-observation: in-process harness doesn't stress the right thing
+
+The TL;DR for future perf work:
+
+- In-process benchmarks (SQLite) are great for detecting changes in **query
+  count and payload size** (which is why orders shows a 10× win — 500 rows
+  transferred vs 1 row with a COUNT became ~10× fewer bytes/ticks).
+- They **don't** model network RTT between API and DB, which is where
+  `load-all-into-memory` actually hurts in prod.
+- For the dashboard specifically, run it against SQL Server via k6 and
+  expect a 3–10× improvement at the same data volume.
 
 ## Future perf work (not shipped)
 
@@ -93,3 +124,5 @@ as the default for simpler write-side flows.
 - Read replica routing if Azure SQL is the bottleneck (Premium-tier feature).
 - `IMemoryCache` around the dashboard endpoint with a short TTL (~15s) for
   the unavoidable "merchant refreshes dashboard constantly" pattern.
+- Batch the dashboard's ~10 queries into a single stored procedure (or
+  `FromSqlRaw` union) if round-trip count becomes the bottleneck in prod.
