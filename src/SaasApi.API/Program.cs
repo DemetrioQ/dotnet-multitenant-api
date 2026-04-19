@@ -76,16 +76,16 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+app.MapOpenApi();
+app.MapScalarApiReference(opts =>
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference(opts =>
-    {
-        opts.Title = "SaaS API";
-        opts.Theme = ScalarTheme.Purple;
-        opts.DefaultHttpClient = new(ScalarTarget.JavaScript, ScalarClient.Fetch);
-    });
-}
+    opts.Title = "SaaS API";
+    opts.Theme = ScalarTheme.Purple;
+    opts.DefaultHttpClient = new(ScalarTarget.JavaScript, ScalarClient.Fetch);
+});
+
+app.MapGet("/", () => Results.Redirect("/scalar/v1", permanent: false))
+   .ExcludeFromDescription();
 
 app.UseExceptionHandler();
 app.UseCors("Frontend");
