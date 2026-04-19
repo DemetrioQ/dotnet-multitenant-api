@@ -1,6 +1,11 @@
 # Performance findings
 
-Benchmark of the three endpoints we optimized, before vs after.
+Two studies of the optimized read endpoints:
+
+1. **Before-vs-after at 2,000 orders** — shows the speedup from the
+   SQL-pushdown + query-combining rewrites.
+2. **Scaling study (low / medium / high)** — shows how the optimized
+   endpoints behave at 2k → 200k → 1M orders on the same harness.
 
 ## How these numbers were produced
 
@@ -11,14 +16,16 @@ using `WebAppFactory` + SQLite in-memory. Invoke with:
 dotnet test --filter "FullyQualifiedName~PerfBenchmark"
 ```
 
-**Seed:** 1 tenant, 300 products, 100 customers, **2,000 orders** with 1–3
-line items each. 30 requests per endpoint.
+Each theory row seeds its own tier and measures 30 requests per endpoint
+against the primary (largest) tenant. The `low` tier matches the numbers
+used in the before-vs-after comparison below.
 
 **Caveat:** SQLite in-memory is much faster than SQL Server over a network.
 Round-trip count and row-materialization cost both matter less here than they
-would in prod. Absolute latencies are toy numbers; the useful signal is the
-*relative* change between baseline and optimized. Real numbers on SQL Server
-need the k6 scripts + your deployment.
+would in prod. Absolute latencies are toy numbers; the useful signals are
+(a) the *relative* change between baseline and optimized, and (b) whether
+p95 blows up as data volume grows. Real numbers on SQL Server need the k6
+scripts + your deployment.
 
 ## Results at 2,000 orders
 
@@ -100,6 +107,76 @@ a tenant with 10,000 SKUs would see a bigger delta.
 `orders-deep` p99 jumped from 8.8ms to 26.5ms. That's one outlier in 30
 samples (likely query-plan cold-start or GC timing in-process), not a
 systemic regression. p95 is a cleaner signal at this sample count.
+
+## Scaling study — low / medium / high
+
+The benchmark is a `[Theory]` with three tiers. Each tier seeds its own set of
+tenants (fresh slugs) and measures the endpoints against the **largest** tenant.
+Other tenants exist to put data in neighboring partitions so the tenant filter
+isn't trivially selective.
+
+| tier   | tenants | primary products | primary customers | primary orders | deep-page offset |
+|--------|---------|------------------|-------------------|----------------|------------------|
+| low    | 1       | 300              | 100               | 2,000          | 100              |
+| medium | 10      | 1,000            | 2,000             | 200,000        | 10,000           |
+| high   | 50      | 5,000            | 10,000            | 1,000,000      | 50,000           |
+
+Seed time: low **~1s**, medium **~9s**, high **~40s** (raw-SQL bulk insert with
+`PRAGMA foreign_keys = OFF` during the load — data integrity guaranteed by
+construction, since the product/customer IDs are materialized from the same
+connection immediately before the inserts).
+
+### p95 across tiers (SQLite in-memory)
+
+| endpoint             | low (2k) | medium (200k) | high (1M) |
+|----------------------|----------|---------------|-----------|
+| dashboard            | 2.9 ms   | 1.3 ms        | 4.0 ms    |
+| orders               | 0.9 ms   | 0.3 ms        | 0.7 ms    |
+| orders-deep          | 0.8 ms   | 0.4 ms        | 0.6 ms    |
+| storefront-products  | 1.9 ms   | 0.6 ms        | 2.2 ms    |
+
+Full tables (min / p50 / p95 / p99 / max in ms) are in
+`perf/bench-output.log` after a run.
+
+### How to read this
+
+**Don't read it as a monotonic scaling curve.** Two things to be aware of:
+
+1. **xUnit theory-row ordering is not the tier ordering.** Observed order here
+   was `low → high → medium`. The first tier pays JIT + query-plan + ASP.NET
+   pipeline warmup; subsequent tiers benefit. At sub-5ms absolute latencies
+   that cold-start cost (~1-2 ms) dominates the *differences* between tiers.
+2. **SQLite in-memory is not SQL Server.** At 1M rows on a disk-backed engine
+   with network RTT, you'd see different shapes. Here everything is cache-hot
+   RAM and a no-op network hop.
+
+What the study **does** tell us:
+
+- **None of the optimized endpoints blow up at 1M orders.** All four stay
+  sub-5 ms p95 on this harness even when the tenant has a million rows across
+  ~2 million order items.
+- **OFFSET pagination at page 50,000 (offset = 1,000,000) on `orders-deep`
+  stays sub-1 ms.** Because the query orders by an indexed column (`Id`),
+  SQLite can seek-and-skip rather than materialize a million rows. On SQL
+  Server the shape holds only if the same index is usable; if it isn't, deep
+  OFFSET degrades to O(n). Keyset pagination would be the robust fix before
+  shipping very-deep pagination as a supported feature.
+- **Dashboard at 1M orders is ~4 ms p95** on SQLite in-memory. The combined
+  `GroupBy(_ => 1).Select(...)` aggregates push everything to SQL; row count
+  only shows up as a constant multiplier inside a single scan per table.
+- **Storefront products scales with catalog size, not order count** — as
+  expected, since it only touches `Products`.
+
+### Caveats for real-deployment numbers
+
+- For SQL Server numbers the k6 scripts in this folder plus a deployed
+  instance is the right tool. This in-process benchmark is a regression
+  detector, not a capacity model.
+- The "other tenants" in medium/high are small (100 products, 50 customers,
+  100–200 orders each) — enough to pollute shared indexes, not enough to
+  model a real noisy-neighbor scenario. If you want that, crank those knobs.
+- Seed uses `PRAGMA foreign_keys = OFF` during bulk load. Tests re-enable
+  FKs before measurement so query behavior is unaffected.
 
 ## The one meta-lesson
 
