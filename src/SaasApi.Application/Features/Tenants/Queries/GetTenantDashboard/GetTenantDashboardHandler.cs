@@ -1,67 +1,92 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
-using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.Tenants.Queries.GetTenantDashboard;
 
-public class GetTenantDashboardHandler(
-    IRepository<User> userRepo,
-    IRepository<Product> productRepo,
-    IRepository<Customer> customerRepo,
-    IRepository<Order> orderRepo,
-    IRepository<OrderItem> orderItemRepo,
-    IRepository<TenantOnboardingStatus> onboardingRepo,
-    IRepository<AuditLogEntry> auditRepo)
+public class GetTenantDashboardHandler(IAppDbContext db)
     : IRequestHandler<GetTenantDashboardQuery, TenantDashboardDto>
 {
     public async Task<TenantDashboardDto> Handle(GetTenantDashboardQuery request, CancellationToken ct)
     {
-        var users = await userRepo.GetAllAsync(ct);
-        var products = await productRepo.GetAllAsync(ct);
-        var customers = await customerRepo.GetAllAsync(ct);
-        var orders = await orderRepo.GetAllAsync(ct);
+        // All DbSets are tenant-filtered via global query filter. Strategy: collapse
+        // aggregates that target the same table into one GroupBy(_ => 1) query so we
+        // trade bytes for round-trips the right way — a single round-trip per source
+        // table beats 2–3 per table, especially once network latency is in play.
 
-        var paidOrFulfilled = orders
-            .Where(o => o.Status is OrderStatus.Paid or OrderStatus.Fulfilled)
-            .ToList();
+        // Users: total + active in one round-trip.
+        var userStats = await db.Users
+            .GroupBy(_ => 1)
+            .Select(g => new { Total = g.Count(), Active = g.Count(u => u.IsActive) })
+            .FirstOrDefaultAsync(ct) ?? new { Total = 0, Active = 0 };
 
-        var totalRevenue = paidOrFulfilled.Sum(o => o.Total);
-        var aov = paidOrFulfilled.Count == 0 ? 0m : totalRevenue / paidOrFulfilled.Count;
+        // Products: total + active in one round-trip.
+        var productStats = await db.Products
+            .GroupBy(_ => 1)
+            .Select(g => new { Total = g.Count(), Active = g.Count(p => p.IsActive) })
+            .FirstOrDefaultAsync(ct) ?? new { Total = 0, Active = 0 };
 
-        var paidOrderIds = paidOrFulfilled.Select(o => o.Id).ToHashSet();
-        var paidItems = paidOrderIds.Count == 0
-            ? Array.Empty<OrderItem>()
-            : (await orderItemRepo.FindAsync(i => paidOrderIds.Contains(i.OrderId), ct)).ToArray();
+        var customerCount = await db.Customers.CountAsync(ct);
 
-        var topProducts = paidItems
-            .GroupBy(i => i.ProductId)
-            .Select(g => new TopProductDto(
-                g.Key,
-                g.First().ProductName,
-                g.First().ProductSlug,
-                g.Sum(i => i.Quantity),
-                g.Sum(i => i.LineTotal)))
-            .OrderByDescending(t => t.Revenue)
+        // Orders: pending + paid/fulfilled counts + paid revenue in one round-trip.
+        var orderStats = await db.Orders
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Pending = g.Count(o => o.Status == OrderStatus.Pending),
+                Paid = g.Count(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled),
+                PaidRevenue = g
+                    .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled)
+                    .Sum(o => (decimal?)o.Total) ?? 0m
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? new { Pending = 0, Paid = 0, PaidRevenue = 0m };
+
+        var aov = orderStats.Paid == 0 ? 0m : orderStats.PaidRevenue / orderStats.Paid;
+
+        // Top 5 products by revenue — SQL GROUP BY over OrderItems of paid/fulfilled orders.
+        var paidOrderIds = db.Orders
+            .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled)
+            .Select(o => o.Id);
+        // SQLite can't ORDER BY a decimal expression (works on SQL Server). Cast the
+        // sum to double only for the ordering; the projected value stays decimal.
+        var topProducts = await db.OrderItems
+            .Where(i => paidOrderIds.Contains(i.OrderId))
+            .GroupBy(i => new { i.ProductId, i.ProductName, i.ProductSlug })
+            .Select(g => new
+            {
+                g.Key.ProductId,
+                g.Key.ProductName,
+                g.Key.ProductSlug,
+                Units = g.Sum(x => x.Quantity),
+                Revenue = g.Sum(x => x.LineTotal),
+                RevenueForSort = (double)g.Sum(x => x.LineTotal)
+            })
+            .OrderByDescending(x => x.RevenueForSort)
             .Take(5)
-            .ToList();
+            .Select(x => new TopProductDto(x.ProductId, x.ProductName, x.ProductSlug, x.Units, x.Revenue))
+            .ToListAsync(ct);
 
-        var statuses = await onboardingRepo.FindAsync(_ => true, ct);
-        var onboardingComplete = statuses.FirstOrDefault()?.IsComplete ?? false;
+        var onboardingComplete = await db.TenantOnboardingStatuses
+            .Select(s => (bool?)s.IsComplete)
+            .FirstOrDefaultAsync(ct) ?? false;
 
-        var recentAudit = await auditRepo.GetPagedDescAsync(0, 10, ct);
-        var recentActivity = recentAudit
+        var recentActivity = await db.AuditLogEntries
+            .OrderByDescending(a => a.CreatedAt)
+            .Take(10)
             .Select(a => new RecentAuditEntryDto(a.Action, a.EntityType, a.Details, a.CreatedAt))
-            .ToList();
+            .ToListAsync(ct);
 
         return new TenantDashboardDto(
-            UserCount: users.Count,
-            ActiveUserCount: users.Count(u => u.IsActive),
-            ProductCount: products.Count,
-            ActiveProductCount: products.Count(p => p.IsActive),
-            CustomerCount: customers.Count,
-            PendingOrderCount: orders.Count(o => o.Status == OrderStatus.Pending),
-            PaidOrderCount: paidOrFulfilled.Count,
-            TotalRevenue: totalRevenue,
+            UserCount: userStats.Total,
+            ActiveUserCount: userStats.Active,
+            ProductCount: productStats.Total,
+            ActiveProductCount: productStats.Active,
+            CustomerCount: customerCount,
+            PendingOrderCount: orderStats.Pending,
+            PaidOrderCount: orderStats.Paid,
+            TotalRevenue: orderStats.PaidRevenue,
             AverageOrderValue: aov,
             TopProducts: topProducts,
             OnboardingComplete: onboardingComplete,
