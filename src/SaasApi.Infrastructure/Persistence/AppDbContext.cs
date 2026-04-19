@@ -6,7 +6,7 @@ using SaasApi.Domain.Entities;
 namespace SaasApi.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenantService tenantService)
-    : DbContext(options)
+    : DbContext(options), IAppDbContext
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<User> Users => Set<User>();

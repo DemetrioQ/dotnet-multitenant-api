@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseSqlServer(config.GetConnectionString("DefaultConnection")));
+        services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddHttpContextAccessor();

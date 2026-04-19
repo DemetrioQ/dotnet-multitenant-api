@@ -1,14 +1,12 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Common.Models;
 using SaasApi.Domain.Entities;
-using SaasApi.Domain.Interfaces;
 
 namespace SaasApi.Application.Features.MerchantOrders.Queries.GetMerchantOrders;
 
-public class GetMerchantOrdersHandler(
-    IRepository<Order> orderRepo,
-    IRepository<OrderItem> itemRepo,
-    IRepository<Customer> customerRepo)
+public class GetMerchantOrdersHandler(IAppDbContext db)
     : IRequestHandler<GetMerchantOrdersQuery, PagedResult<MerchantOrderSummaryDto>>
 {
     public async Task<PagedResult<MerchantOrderSummaryDto>> Handle(GetMerchantOrdersQuery request, CancellationToken ct)
@@ -16,40 +14,36 @@ public class GetMerchantOrdersHandler(
         var page = request.Page < 1 ? 1 : request.Page;
         var pageSize = request.PageSize is < 1 or > 100 ? 20 : request.PageSize;
 
-        OrderStatus? statusFilter = null;
+        var query = db.Orders.AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Status) &&
             Enum.TryParse<OrderStatus>(request.Status, ignoreCase: true, out var parsed))
         {
-            statusFilter = parsed;
+            query = query.Where(o => o.Status == parsed);
         }
 
-        var all = statusFilter.HasValue
-            ? await orderRepo.FindAsync(o => o.Status == statusFilter.Value, ct)
-            : (IReadOnlyList<Order>)await orderRepo.GetAllAsync(ct);
+        var total = await query.CountAsync(ct);
+        if (total == 0)
+            return new PagedResult<MerchantOrderSummaryDto>(Array.Empty<MerchantOrderSummaryDto>(), 0, page, pageSize);
 
-        var ordered = all.OrderByDescending(o => o.CreatedAt).ToList();
-        var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        // SQL-side page + summary shape. Join customer inline; compute itemCount via
+        // correlated subquery (EF translates the Sum into the SELECT list).
+        var summaries = await (from o in query
+                               orderby o.CreatedAt descending
+                               join c in db.Customers on o.CustomerId equals c.Id
+                               select new MerchantOrderSummaryDto(
+                                   o.Id,
+                                   o.Number,
+                                   o.Status.ToString().ToLower(),
+                                   c.Id,
+                                   c.Email,
+                                   c.FirstName + " " + c.LastName,
+                                   o.Total,
+                                   db.OrderItems.Where(i => i.OrderId == o.Id).Sum(i => (int?)i.Quantity) ?? 0,
+                                   o.CreatedAt))
+                              .Skip((page - 1) * pageSize)
+                              .Take(pageSize)
+                              .ToListAsync(ct);
 
-        if (paged.Count == 0)
-            return new PagedResult<MerchantOrderSummaryDto>(Array.Empty<MerchantOrderSummaryDto>(), ordered.Count, page, pageSize);
-
-        var orderIds = paged.Select(o => o.Id).ToHashSet();
-        var items = await itemRepo.FindAsync(i => orderIds.Contains(i.OrderId), ct);
-        var countsByOrder = items.GroupBy(i => i.OrderId)
-            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-
-        var customerIds = paged.Select(o => o.CustomerId).ToHashSet();
-        var customers = await customerRepo.FindAsync(c => customerIds.Contains(c.Id), ct);
-        var customersById = customers.ToDictionary(c => c.Id);
-
-        var dtos = paged
-            .Where(o => customersById.ContainsKey(o.CustomerId))
-            .Select(o => MerchantOrderSummaryDto.FromEntity(
-                o,
-                customersById[o.CustomerId],
-                countsByOrder.GetValueOrDefault(o.Id, 0)))
-            .ToList();
-
-        return new PagedResult<MerchantOrderSummaryDto>(dtos, ordered.Count, page, pageSize);
+        return new PagedResult<MerchantOrderSummaryDto>(summaries, total, page, pageSize);
     }
 }
