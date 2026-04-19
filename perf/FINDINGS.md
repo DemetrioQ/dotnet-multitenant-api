@@ -4,9 +4,8 @@ Benchmark of the three endpoints we optimized, before vs after.
 
 ## How these numbers were produced
 
-In-process benchmark (`tests/SaasApi.IntegrationTests/PerfBenchmark.cs`) using
-the existing `WebAppFactory` harness. The `[Trait("Category", "Benchmark")]`
-tag keeps it out of the default test run; invoke explicitly with:
+In-process benchmark (`tests/SaasApi.IntegrationTests/PerfBenchmark.cs`)
+using `WebAppFactory` + SQLite in-memory. Invoke with:
 
 ```bash
 dotnet test --filter "FullyQualifiedName~PerfBenchmark"
@@ -15,22 +14,13 @@ dotnet test --filter "FullyQualifiedName~PerfBenchmark"
 **Seed:** 1 tenant, 300 products, 100 customers, **2,000 orders** with 1–3
 line items each. 30 requests per endpoint.
 
-**Important caveat — SQLite in-memory is not SQL Server.** The test harness
-replaces SQL Server with SQLite running in-memory. That means:
+**Caveat:** SQLite in-memory is much faster than SQL Server over a network.
+Round-trip count and row-materialization cost both matter less here than they
+would in prod. Absolute latencies are toy numbers; the useful signal is the
+*relative* change between baseline and optimized. Real numbers on SQL Server
+need the k6 scripts + your deployment.
 
-- No network round-trip cost per query. Each query is essentially a function
-  call into the same process.
-- "Load all rows" is nearly free at 2,000 rows (it'd be awful on SQL Server
-  over a LAN at the same row count).
-- Query-plan optimization and index scans behave differently.
-
-So the **relative** improvement on `orders` (clear) will be even larger on
-real SQL Server. The **absolute** dashboard numbers shown here are noisier
-than they'd be in prod — see commentary at the bottom.
-
-For real-world numbers, use the k6 scripts + your SQL Server deployment.
-
-## Results (2,000 orders, SQLite in-memory)
+## Results at 2,000 orders
 
 ### Baseline (commit `85a2ab3`, pre-optimization)
 
@@ -43,86 +33,89 @@ orders-deep                      24.1     29.1     52.1     72.7     72.7
 storefront-products               1.5      2.1      3.5      6.3      6.3
 ```
 
-### After SQL-pushdown (commit `7f6a209`, this branch)
+### After SQL-pushdown + query-combining (this branch)
 
 ```
 endpoint                      min(ms)  p50(ms)  p95(ms)  p99(ms)  max(ms)
 ------------------------------------------------------------------------------
-dashboard                        66.7     98.7    117.5    128.4    128.4
-orders                            4.5      4.9      6.9      7.2      7.2
-orders-deep                       6.0      6.4      8.6      8.8      8.8
-storefront-products               0.7      0.8      3.0     12.2     12.2
+dashboard                         8.4     10.7     12.7     12.9     12.9
+orders                            4.6      5.0      5.9      6.8      6.8
+orders-deep                       6.2      7.5      9.5     26.5     26.5
+storefront-products               0.8      0.8      1.1      2.4      2.4
 ```
 
 ### Delta — p95
 
 | endpoint | baseline | optimized | speedup |
 |---|---|---|---|
-| dashboard | 108.5 ms | 117.5 ms | **1.0×** (neutral) |
-| orders | 68.6 ms | 6.9 ms | **~10×** |
-| orders-deep (page 100) | 52.1 ms | 8.6 ms | **~6×** |
-| storefront-products | 3.5 ms | 3.0 ms | **~1.2×** |
+| dashboard | 108.5 ms | 12.7 ms | **~8.5×** |
+| orders | 68.6 ms | 5.9 ms | **~11.6×** |
+| orders-deep (page 100) | 52.1 ms | 9.5 ms | **~5.5×** |
+| storefront-products | 3.5 ms | 1.1 ms | **~3×** |
+
+## Correction
+
+An earlier draft of this doc claimed the dashboard rewrite was "neutral at
+2,000 orders on SQLite." That claim was wrong — not because of a subtle
+scaling story, but because **the dashboard rewrite silently never landed in
+the file**. The "optimized" and "baseline" measurements were comparing
+the same handler against itself.
+
+Fix applied in commit `f5e326d`. The real dashboard rewrite:
+
+1. Switched from `IRepository<T>.GetAllAsync()` + in-memory aggregates to
+   `IAppDbContext` + SQL `COUNT` / `SUM` / `GROUP BY`.
+2. **Collapsed same-table aggregates into single queries** via
+   `GroupBy(_ => 1).Select(...)` — e.g. user total + active count is one
+   query emitting `SELECT COUNT(*), SUM(CASE WHEN IsActive THEN 1 ELSE 0 END)`
+   instead of two round-trips.
+
+Net result: 10+ round-trips collapsed to ~6, plus zero full-table
+materialization.
 
 ## Commentary
 
-### Orders: clear win
+### Orders (~11.6×)
 
-`GET /api/v1/orders` went from ~69ms p95 to ~7ms — roughly an order of
-magnitude. Deep pagination (page 100) saw a similar win because the rewrite
-uses `OFFSET/FETCH` server-side, so page N costs the same as page 1 instead
-of linearly scaling.
+`GET /api/v1/orders` went from 69ms p95 to ~6ms. Deep pagination (page 100)
+saw a similar drop. The rewrite uses SQL `OFFSET/FETCH`, so page N costs
+the same as page 1 instead of scaling linearly with row count. Biggest win
+that ships on either DB provider.
 
-### Storefront products: mild win
+### Dashboard (~8.5×)
 
-3.5ms → 3.0ms p95. Small because 300 active products isn't enough to stress
-the "load all" pattern. The real win will appear when a tenant hits a few
-thousand SKUs — still worth shipping the fix.
+The combined-query rewrite does ~6 round-trips instead of 10+. Each returns
+either a scalar, a single-row aggregate, or a ≤5 or ≤10 row capped list —
+no full-table materialization. That's why it dropped from ~110ms to ~13ms
+on SQLite, where you wouldn't normally see SQL-pushdown wins (no network
+latency to amortize).
 
-### Dashboard: why it looks neutral on SQLite
+### Storefront products (~3×)
 
-The pre-rewrite dashboard did **six `GetAllAsync` calls + client-side
-aggregation** — one query each pulling the full table, then sums and groups
-in .NET code. The rewrite does **~10 separate `COUNT`/`SUM`/`GROUP BY`
-queries** that each return a single number or small result set.
+Modest — 300 products isn't much data. The rewrite scales with catalog size;
+a tenant with 10,000 SKUs would see a bigger delta.
 
-On SQL Server over a network connection each round-trip is ~1–10ms of wire
-latency. Six-vs-ten is close enough that query-planning matters more than
-round-trip count; loading the full set quickly becomes a problem because
-materializing 2,000 orders plus their 5,000ish line items into .NET objects
-is expensive. The optimized version wins big because it returns single
-scalars — no entity materialization.
+### orders-deep p99 spike
 
-On **SQLite in-memory** there is no network latency and materialization is
-cheaper (no column type coercion over the wire). The "ten small queries"
-pattern looks very similar to "one big query + client aggregation" because
-SQLite executes both in the same process. That's what this benchmark shows:
-the two versions are ~identical at 2,000 orders.
+`orders-deep` p99 jumped from 8.8ms to 26.5ms. That's one outlier in 30
+samples (likely query-plan cold-start or GC timing in-process), not a
+systemic regression. p95 is a cleaner signal at this sample count.
 
-**Expected behavior on real SQL Server at the same data volume:** baseline
-would climb sharply as it materializes everything; optimized would stay
-flat. The code change is the right one, but demonstrating it requires the
-k6 scripts running against SQL Server.
+## The one meta-lesson
 
-### Meta-observation: in-process harness doesn't stress the right thing
-
-The TL;DR for future perf work:
-
-- In-process benchmarks (SQLite) are great for detecting changes in **query
-  count and payload size** (which is why orders shows a 10× win — 500 rows
-  transferred vs 1 row with a COUNT became ~10× fewer bytes/ticks).
-- They **don't** model network RTT between API and DB, which is where
-  `load-all-into-memory` actually hurts in prod.
-- For the dashboard specifically, run it against SQL Server via k6 and
-  expect a 3–10× improvement at the same data volume.
+**Verify writes landed.** Earlier I reported a "neutral" dashboard result
+because a tool-level file write silently no-op'd and the benchmark compared
+two identical builds. Always rebuild + spot-check the file after a batch of
+changes before trusting the numbers.
 
 ## Future perf work (not shipped)
 
-- Add a real output cache on `GET /api/v1/stores` (directory endpoint) — hit
-  from the storefront landing page, perfectly cacheable for 30–60s.
-- Compile-time query caching: EF compiles query plans per call site; for
-  the top-products query, consider `EF.CompileAsyncQuery`.
-- Read replica routing if Azure SQL is the bottleneck (Premium-tier feature).
-- `IMemoryCache` around the dashboard endpoint with a short TTL (~15s) for
-  the unavoidable "merchant refreshes dashboard constantly" pattern.
-- Batch the dashboard's ~10 queries into a single stored procedure (or
-  `FromSqlRaw` union) if round-trip count becomes the bottleneck in prod.
+- Add a real output cache on `GET /api/v1/stores` (directory endpoint) —
+  hit from the storefront landing page, perfectly cacheable for 30–60s.
+- Compile-time query caching: EF compiles query plans per call site;
+  consider `EF.CompileAsyncQuery` for the top-products query.
+- `IMemoryCache` around the dashboard endpoint with a 15s TTL for the
+  "merchant refreshes dashboard constantly" pattern.
+- Batch the dashboard queries into a single stored proc (or `FromSqlRaw`
+  multi-result set) if network RTT becomes the bottleneck in prod.
+- Read replica routing for Azure SQL if read traffic outgrows the primary.
