@@ -51,12 +51,12 @@ public static class DatabaseSeeder
 
         var adminExists = await db.Users
             .IgnoreQueryFilters()
-            .AnyAsync(u => u.TenantId == platformTenant.Id && u.Role == "super-admin");
+            .AnyAsync(u => u.TenantId == platformTenant.Id && u.Role == UserRole.SuperAdmin);
 
         if (!adminExists)
         {
             var passwordHash = passwordHasher.Hash(password);
-            var superAdmin = User.Create(platformTenant.Id, email, passwordHash, "super-admin");
+            var superAdmin = User.Create(platformTenant.Id, email, passwordHash, UserRole.SuperAdmin);
             superAdmin.VerifyEmail();
             db.Users.Add(superAdmin);
             await db.SaveChangesAsync();

@@ -8,6 +8,7 @@ using SaasApi.Application.Features.Products.Commands.SetProductStatus;
 using SaasApi.Application.Features.Products.Commands.UpdateProduct;
 using SaasApi.Application.Features.Products.Queries.GetProductById;
 using SaasApi.Application.Features.Products.Queries.GetProducts;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers
 {
@@ -61,7 +62,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpPut("{id}/status")]
-        [Authorize(Roles = "admin,super-admin")]
+        [Authorize(Roles = RoleNames.AdminAndAbove)]
         public async Task<IActionResult> SetProductStatus([FromRoute] Guid id, [FromBody] SetProductStatusRequest request, CancellationToken ct)
         {
             await mediator.Send(new SetProductStatusCommand(id, request.IsActive), ct);
@@ -69,7 +70,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin,super-admin")]
+        [Authorize(Roles = RoleNames.AdminAndAbove)]
         public async Task<IActionResult> DeleteProduct([FromRoute] Guid id, CancellationToken ct)
         {
             await mediator.Send(new DeleteProductCommand(id), ct);

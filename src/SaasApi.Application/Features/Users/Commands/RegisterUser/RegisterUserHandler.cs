@@ -22,7 +22,7 @@ public class RegisterUserHandler(
             throw new ConflictException("A user with this email already exists in this tenant.");
 
         var tenantUsers = await userRepo.FindGlobalAsync(u => u.TenantId == request.TenantId, ct);
-        var role = tenantUsers.Any() ? "member" : "admin";
+        var role = tenantUsers.Any() ? UserRole.Member : UserRole.Admin;
 
         var passwordHash = passwordHasher.Hash(request.Password);
         var user = User.Create(request.TenantId, request.Email, passwordHash, role);

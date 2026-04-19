@@ -10,6 +10,7 @@ using SaasApi.Application.Features.Tenants.Queries.GetTenantById;
 using SaasApi.Application.Features.Tenants.Queries.GetOnboardingStatus;
 using SaasApi.Application.Features.Tenants.Queries.GetTenantDashboard;
 using SaasApi.Application.Features.Tenants.Queries.GetTenants;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers
 {
@@ -50,7 +51,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "super-admin")]
+        [Authorize(Roles = RoleNames.SuperAdmin)]
         public async Task<IActionResult> GetTenants([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
         {
             if (page < 1) page = 1;
@@ -62,7 +63,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "super-admin")]
+        [Authorize(Roles = RoleNames.SuperAdmin)]
         public async Task<IActionResult> GetTenantById([FromRoute] Guid id, CancellationToken ct)
         {
             var result = await mediator.Send(new GetTenantByIdQuery(id), ct);
@@ -70,7 +71,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "admin,super-admin")]
+        [Authorize(Roles = RoleNames.AdminAndAbove)]
         public async Task<IActionResult> UpdateTenant([FromRoute] Guid id, [FromBody] UpdateTenantRequest request, CancellationToken ct)
         {
             var command = new UpdateTenantCommand(id, request.Name, request.Timezone, request.Currency, request.SupportEmail, request.WebsiteUrl);
@@ -79,7 +80,7 @@ namespace SaasApi.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin,super-admin")]
+        [Authorize(Roles = RoleNames.AdminAndAbove)]
         public async Task<IActionResult> DeactivateTenant([FromRoute] Guid id, CancellationToken ct)
         {
             await mediator.Send(new DeactivateTenantCommand(id), ct);

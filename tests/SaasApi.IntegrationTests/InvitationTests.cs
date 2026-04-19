@@ -122,7 +122,7 @@ public class InvitationTests(WebAppFactory factory) : IntegrationTestBase(factor
             .FirstOrDefault(u => u.Email == "invited4@invite.com" && u.TenantId == tenant.TenantId);
         user.Should().NotBeNull();
         user!.IsEmailVerified.Should().BeTrue();
-        user.Role.Should().Be("member");
+        user.Role.Should().Be(SaasApi.Domain.Entities.UserRole.Member);
     }
 
     [Fact]

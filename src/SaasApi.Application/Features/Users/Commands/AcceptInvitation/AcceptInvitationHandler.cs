@@ -30,7 +30,7 @@ public class AcceptInvitationHandler(
 
         // First user in tenant becomes admin
         var tenantUsers = await userRepo.FindGlobalAsync(u => u.TenantId == invitation.TenantId, ct);
-        var role = tenantUsers.Any() ? "member" : "admin";
+        var role = tenantUsers.Any() ? UserRole.Member : UserRole.Admin;
 
         var passwordHash = passwordHasher.Hash(request.Password);
         var user = User.Create(invitation.TenantId, invitation.Email, passwordHash, role);

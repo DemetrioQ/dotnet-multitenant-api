@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Users.Commands.AcceptInvitation;
 using SaasApi.Application.Features.Users.Commands.InviteUser;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
@@ -17,7 +18,7 @@ public class InvitationsController(
     IConfiguration config) : ControllerBase
 {
     [HttpPost]
-    [Authorize(Roles = "admin,super-admin")]
+    [Authorize(Roles = RoleNames.AdminAndAbove)]
     public async Task<IActionResult> Invite([FromBody] InviteUserCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command, ct);

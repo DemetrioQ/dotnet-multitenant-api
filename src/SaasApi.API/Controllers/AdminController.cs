@@ -7,12 +7,13 @@ using SaasApi.Application.Features.Admin.Queries.GetAllAuditLogs;
 using SaasApi.Application.Features.Admin.Queries.GetAllProducts;
 using SaasApi.Application.Features.Admin.Queries.GetPlatformStats;
 using SaasApi.Application.Features.Admin.Queries.GetTenantUsers;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
 [ApiController]
 [ApiVersion("1.0")]
-[Authorize(Roles = "super-admin")]
+[Authorize(Roles = RoleNames.SuperAdmin)]
 [Route("api/v{version:apiVersion}/[controller]")]
 public class AdminController(IMediator mediator) : ControllerBase
 {

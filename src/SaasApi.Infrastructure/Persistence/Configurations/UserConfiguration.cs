@@ -12,20 +12,25 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.Property(u => u.Email)
             .IsRequired()
-            .HasMaxLength(320); // max valid email length per RFC
+            .HasMaxLength(320);
 
-        // Unique email per tenant (not globally — same email can exist in two tenants)
         builder.HasIndex(u => new { u.TenantId, u.Email })
             .IsUnique();
 
         builder.Property(u => u.PasswordHash)
             .IsRequired()
-            .HasMaxLength(100); // BCrypt output is always 60 chars
+            .HasMaxLength(100);
 
+        // Store enum as its ToDbString() value so the column stays human-readable
+        // ("member", "admin", "super-admin") — matches the existing schema.
+        // No DB-level default value: User.Create always sets Role explicitly, and the
+        // entity field initializer defaults to UserRole.Member at object construction.
         builder.Property(u => u.Role)
             .IsRequired()
             .HasMaxLength(50)
-            .HasDefaultValue("member");
+            .HasConversion(
+                toDb => toDb.ToDbString(),
+                fromDb => UserRoleExtensions.ParseRole(fromDb));
 
         builder.Property(u => u.IsActive)
             .IsRequired();

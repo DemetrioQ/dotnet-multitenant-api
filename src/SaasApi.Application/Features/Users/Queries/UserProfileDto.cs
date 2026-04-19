@@ -13,5 +13,5 @@ public record UserProfileDto(
     bool IsComplete)
 {
     public static UserProfileDto FromEntities(User user, UserProfile profile) =>
-        new(user.Id, user.Email, user.Role, profile.FirstName, profile.LastName, profile.AvatarUrl, profile.Bio, profile.IsComplete);
+        new(user.Id, user.Email, user.Role.ToDbString(), profile.FirstName, profile.LastName, profile.AvatarUrl, profile.Bio, profile.IsComplete);
 }

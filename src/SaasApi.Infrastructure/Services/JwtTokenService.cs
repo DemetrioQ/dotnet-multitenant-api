@@ -17,7 +17,7 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim("tenant_id", user.TenantId.ToString()),
             new Claim("sub_type", "merchant"),
-            new Claim(ClaimTypes.Role, user.Role),
+            new Claim(ClaimTypes.Role, user.Role.ToDbString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
         };
         return Build(claims);

@@ -7,6 +7,7 @@ using SaasApi.Application.Features.Users.Commands.UpdateMyProfile;
 using SaasApi.Application.Features.Users.Commands.UpdateUserRole;
 using SaasApi.Application.Features.Users.Queries.GetMyProfile;
 using SaasApi.Application.Features.Users.Queries.GetUsers;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
@@ -42,7 +43,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("{id}/role")]
-    [Authorize(Roles = "admin,super-admin")]
+    [Authorize(Roles = RoleNames.AdminAndAbove)]
     public async Task<IActionResult> UpdateRole([FromRoute] Guid id, [FromBody] UpdateUserRoleCommand command, CancellationToken ct)
     {
         var result = await mediator.Send(command with { Id = id }, ct);
@@ -50,7 +51,7 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "admin,super-admin")]
+    [Authorize(Roles = RoleNames.AdminAndAbove)]
     public async Task<IActionResult> DeactivateUser([FromRoute] Guid id, CancellationToken ct)
     {
         await mediator.Send(new DeactivateUserCommand(id), ct);

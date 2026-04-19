@@ -22,7 +22,7 @@ namespace SaasApi.Application.Features.Users.Commands.UpdateUserRole
             userRepo.Update(user);
             await userRepo.SaveChangesAsync(ct);
 
-            await auditService.LogAsync("user.role_updated", "User", user.Id, $"Role changed to {request.Role}", ct);
+            await auditService.LogAsync("user.role_updated", "User", user.Id, $"Role changed to {request.Role.ToDbString()}", ct);
 
             return UserDto.FromEntity(user);
         }

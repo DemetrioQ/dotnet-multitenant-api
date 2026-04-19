@@ -3,11 +3,12 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SaasApi.Application.Features.AuditLog.Queries.GetAuditLog;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
 [ApiController]
-[Authorize(Roles = "admin,super-admin")]
+[Authorize(Roles = RoleNames.AdminAndAbove)]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 public class AuditController(IMediator mediator) : ControllerBase

@@ -29,7 +29,14 @@ builder.Services.AddAuthorization(opts =>
               .RequireClaim("sub_type", "customer"));
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(opts =>
+{
+    // Accept and emit enums as their string names (case-insensitive) — so clients can
+    // send { "role": "admin" } instead of { "role": 1 } and responses are readable.
+    opts.JsonSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter(
+            namingPolicy: null, allowIntegerValues: false));
+});
 builder.Services.AddOpenApi(opts =>
 {
     opts.AddDocumentTransformer<BearerSecuritySchemeTransformer>();

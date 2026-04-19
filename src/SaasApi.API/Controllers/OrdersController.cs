@@ -6,6 +6,7 @@ using SaasApi.Application.Features.MerchantOrders.Commands.CancelOrder;
 using SaasApi.Application.Features.MerchantOrders.Commands.FulfillOrder;
 using SaasApi.Application.Features.MerchantOrders.Queries.GetMerchantOrderById;
 using SaasApi.Application.Features.MerchantOrders.Queries.GetMerchantOrders;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
@@ -37,7 +38,7 @@ public class OrdersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPost("{id:guid}/cancel")]
-    [Authorize(Roles = "admin,super-admin")]
+    [Authorize(Roles = RoleNames.AdminAndAbove)]
     public async Task<IActionResult> Cancel([FromRoute] Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new CancelOrderCommand(id), ct);

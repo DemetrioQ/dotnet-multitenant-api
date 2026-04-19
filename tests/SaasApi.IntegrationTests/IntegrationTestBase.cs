@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SaasApi.Domain.Entities;
 using SaasApi.Infrastructure.Persistence;
 using SaasApi.IntegrationTests;
 using System.Net.Http.Headers;
@@ -41,7 +42,7 @@ public abstract class IntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var user = db.Users.IgnoreQueryFilters().First(u => u.Email == email && u.TenantId == tenantId);
         user.VerifyEmail();
-        user.UpdateRole("admin");
+        user.UpdateRole(UserRole.Admin);
         await db.SaveChangesAsync();
 
         var loginResponse = await Client.PostAsJsonAsync("/api/v1/auth/login", new { slug, email, password });
