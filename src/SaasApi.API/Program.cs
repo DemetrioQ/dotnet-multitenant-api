@@ -46,11 +46,32 @@ builder.Services.AddOpenApi(opts =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
+    {
+        var frontendUrl = builder.Configuration["App:FrontendUrl"]?.TrimEnd('/');
+        var storefrontSuffix = builder.Configuration["Storefront:HostSuffix"];
+
         policy
-            .WithOrigins("http://localhost:5173")
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrEmpty(origin)) return false;
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+
+                if (uri.Host == "localhost") return true;
+
+                if (!string.IsNullOrEmpty(frontendUrl) &&
+                    string.Equals(origin.TrimEnd('/'), frontendUrl, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                if (!string.IsNullOrEmpty(storefrontSuffix) &&
+                    uri.Host.EndsWith(storefrontSuffix, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return false;
+            })
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials());
+            .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
