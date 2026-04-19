@@ -15,6 +15,7 @@ public class HandlePaymentWebhookHandler(
     IRepository<Customer> customerRepo,
     IRepository<Tenant> tenantRepo,
     IRepository<TenantSettings> settingsRepo,
+    IRepository<TenantPaymentAccount> paymentAccountRepo,
     IStoreUrlBuilder storeUrlBuilder,
     IBackgroundJobQueue jobQueue,
     IPaymentService paymentService,
@@ -26,22 +27,31 @@ public class HandlePaymentWebhookHandler(
         var evt = paymentService.ParseWebhook(request.Payload, request.SignatureHeader);
 
         if (evt.Kind == PaymentEventKind.Unknown) return;
-        if (string.IsNullOrWhiteSpace(evt.SessionId)) return;
-
-        // Webhook is not tenant-scoped — look up order globally by session id.
-        var orders = await orderRepo.FindGlobalAsync(o => o.PaymentSessionId == evt.SessionId, ct);
-        var order = orders.FirstOrDefault();
-        if (order is null) return;
 
         switch (evt.Kind)
         {
             case PaymentEventKind.SessionCompleted:
-                await HandleSessionCompletedAsync(order, ct);
+                await HandleSessionEventAsync(evt.SessionId, HandleSessionCompletedAsync, ct);
                 break;
             case PaymentEventKind.SessionExpired:
-                await HandleSessionExpiredAsync(order, ct);
+                await HandleSessionEventAsync(evt.SessionId, HandleSessionExpiredAsync, ct);
+                break;
+            case PaymentEventKind.AccountUpdated:
+                await HandleAccountUpdatedAsync(evt, ct);
                 break;
         }
+    }
+
+    private async Task HandleSessionEventAsync(string sessionId, Func<Order, CancellationToken, Task> handler, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId)) return;
+
+        // Webhook is not tenant-scoped — look up order globally by session id.
+        var orders = await orderRepo.FindGlobalAsync(o => o.PaymentSessionId == sessionId, ct);
+        var order = orders.FirstOrDefault();
+        if (order is null) return;
+
+        await handler(order, ct);
     }
 
     private async Task HandleSessionCompletedAsync(Order order, CancellationToken ct)
@@ -96,6 +106,31 @@ public class HandlePaymentWebhookHandler(
             order.Id,
             $"Order {order.Number} canceled (payment session expired). Stock restored.",
             ct);
+    }
+
+    private async Task HandleAccountUpdatedAsync(PaymentEvent evt, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(evt.AccountId)) return;
+
+        // Find the tenant's payment account globally — webhook has no tenant context.
+        var accounts = await paymentAccountRepo.FindGlobalAsync(a => a.AccountId == evt.AccountId, ct);
+        var account = accounts.FirstOrDefault();
+        if (account is null) return;
+
+        var wasComplete = account.CanAcceptPayments;
+        account.SyncStatus(evt.ChargesEnabled, evt.DetailsSubmitted);
+        paymentAccountRepo.Update(account);
+        await paymentAccountRepo.SaveChangesAsync(ct);
+
+        if (!wasComplete && account.CanAcceptPayments)
+        {
+            await auditService.LogAsync(
+                "payments.account_ready",
+                "TenantPaymentAccount",
+                account.Id,
+                $"Connected {account.Provider} account {account.AccountId} completed onboarding.",
+                ct);
+        }
     }
 
     private async Task EnqueueOrderEmailAsync(EmailTemplateType type, Order order, CancellationToken ct)

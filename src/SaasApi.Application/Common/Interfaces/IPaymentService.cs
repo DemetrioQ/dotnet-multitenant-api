@@ -3,13 +3,16 @@ namespace SaasApi.Application.Common.Interfaces;
 public record PaymentSessionLineItem(string Name, decimal UnitAmount, int Quantity);
 
 public record CreatePaymentSessionRequest(
+    Guid TenantId,
     Guid OrderId,
     string OrderNumber,
     string Currency,
     IReadOnlyList<PaymentSessionLineItem> Items,
     string CustomerEmail,
     string SuccessUrl,
-    string CancelUrl);
+    string CancelUrl,
+    string? ConnectedAccountId,
+    decimal PlatformFeePercent);
 
 public record PaymentSession(string Provider, string SessionId, string PaymentUrl);
 
@@ -17,21 +20,41 @@ public enum PaymentEventKind
 {
     Unknown = 0,
     SessionCompleted,
-    SessionExpired
+    SessionExpired,
+    AccountUpdated
 }
 
-public record PaymentEvent(string EventId, string SessionId, PaymentEventKind Kind);
+public record PaymentEvent(
+    string EventId,
+    string SessionId,
+    PaymentEventKind Kind,
+    string? AccountId = null,
+    bool ChargesEnabled = false,
+    bool DetailsSubmitted = false);
+
+// ── Connect (multi-tenant payments) ─────────────────────────────────────────
+
+public record CreateConnectAccountResult(string Provider, string AccountId);
+
+public record ConnectOnboardingLink(string Url, DateTime ExpiresAt);
+
+public record ConnectAccountStatusInfo(bool ChargesEnabled, bool DetailsSubmitted);
 
 public interface IPaymentService
 {
-    /// <summary>Provider name as stored on the order ("simulation" or "stripe").</summary>
     string ProviderName { get; }
 
     Task<PaymentSession> CreateSessionAsync(CreatePaymentSessionRequest request, CancellationToken ct);
 
-    /// <summary>
-    /// Verifies the incoming webhook payload's signature and parses it into a PaymentEvent.
-    /// Throws UnauthorizedAccessException on invalid signature.
-    /// </summary>
     PaymentEvent ParseWebhook(string payload, string? signatureHeader);
+
+    // Simulation provider fakes these out so local dev works without real Stripe Connect setup.
+    Task<CreateConnectAccountResult> CreateConnectAccountAsync(
+        Guid tenantId, string tenantName, string tenantEmail, CancellationToken ct);
+
+    Task<ConnectOnboardingLink> CreateOnboardingLinkAsync(
+        string accountId, string refreshUrl, string returnUrl, CancellationToken ct);
+
+    Task<ConnectAccountStatusInfo> RefreshAccountStatusAsync(
+        string accountId, CancellationToken ct);
 }

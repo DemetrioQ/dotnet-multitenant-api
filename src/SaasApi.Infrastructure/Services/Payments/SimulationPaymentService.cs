@@ -4,10 +4,8 @@ using SaasApi.Application.Common.Interfaces;
 namespace SaasApi.Infrastructure.Services.Payments;
 
 /// <summary>
-/// A fake payment provider for local dev / portfolio demos. No external calls.
-/// The "payment URL" returned points to a dev-only endpoint on the API itself that,
-/// when POSTed to, emits a SessionCompleted webhook to the real webhook handler.
-/// Webhook signature verification is a no-op; the JSON body is trusted.
+/// Local-dev / portfolio-demo payment provider. Every Stripe-facing method is faked:
+/// sessions point to a dev endpoint, Connect onboarding auto-marks accounts complete.
 /// </summary>
 public class SimulationPaymentService : IPaymentService
 {
@@ -16,8 +14,6 @@ public class SimulationPaymentService : IPaymentService
     public Task<PaymentSession> CreateSessionAsync(CreatePaymentSessionRequest request, CancellationToken ct)
     {
         var sessionId = "sim_" + Guid.NewGuid().ToString("N");
-        // Customer would normally be redirected to Stripe's hosted page. For simulation,
-        // point them to a dev endpoint so the demo works end-to-end.
         var paymentUrl = $"/api/v1/storefront/payments/simulate?sessionId={sessionId}";
         return Task.FromResult(new PaymentSession(ProviderName, sessionId, paymentUrl));
     }
@@ -27,9 +23,22 @@ public class SimulationPaymentService : IPaymentService
         var doc = JsonDocument.Parse(payload);
         var root = doc.RootElement;
 
-        var eventId = root.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
+        var eventId = root.TryGetProperty("id", out var idProp)
+            ? idProp.GetString() ?? Guid.NewGuid().ToString()
+            : Guid.NewGuid().ToString();
         var type = root.GetProperty("type").GetString() ?? "";
-        var sessionId = root.GetProperty("sessionId").GetString() ?? throw new ArgumentException("sessionId required");
+
+        if (type == "account.updated")
+        {
+            var accountId = root.TryGetProperty("accountId", out var aIdProp) ? aIdProp.GetString() ?? "" : "";
+            var charges = root.TryGetProperty("chargesEnabled", out var c) && c.GetBoolean();
+            var details = root.TryGetProperty("detailsSubmitted", out var d) && d.GetBoolean();
+            return new PaymentEvent(eventId, "", PaymentEventKind.AccountUpdated, accountId, charges, details);
+        }
+
+        var sessionId = root.TryGetProperty("sessionId", out var sIdProp)
+            ? sIdProp.GetString() ?? ""
+            : "";
 
         var kind = type switch
         {
@@ -40,4 +49,24 @@ public class SimulationPaymentService : IPaymentService
 
         return new PaymentEvent(eventId, sessionId, kind);
     }
+
+    public Task<CreateConnectAccountResult> CreateConnectAccountAsync(
+        Guid tenantId, string tenantName, string tenantEmail, CancellationToken ct)
+    {
+        var accountId = "sim_acct_" + tenantId.ToString("N")[..12];
+        return Task.FromResult(new CreateConnectAccountResult(ProviderName, accountId));
+    }
+
+    public Task<ConnectOnboardingLink> CreateOnboardingLinkAsync(
+        string accountId, string refreshUrl, string returnUrl, CancellationToken ct)
+    {
+        // Points to a dev-only endpoint that auto-completes the account then redirects
+        // back to returnUrl — mimics Stripe's hosted onboarding without a real setup.
+        var url = $"/api/v1/payments/connect/simulate-onboarding?accountId={accountId}" +
+                  $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+        return Task.FromResult(new ConnectOnboardingLink(url, DateTime.UtcNow.AddMinutes(10)));
+    }
+
+    public Task<ConnectAccountStatusInfo> RefreshAccountStatusAsync(string accountId, CancellationToken ct) =>
+        Task.FromResult(new ConnectAccountStatusInfo(ChargesEnabled: true, DetailsSubmitted: true));
 }

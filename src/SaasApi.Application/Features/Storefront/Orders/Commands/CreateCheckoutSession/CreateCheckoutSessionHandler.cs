@@ -18,6 +18,7 @@ public class CreateCheckoutSessionHandler(
     IRepository<Customer> customerRepo,
     IRepository<CustomerAddress> addressRepo,
     IRepository<TenantSettings> settingsRepo,
+    IRepository<TenantPaymentAccount> paymentAccountRepo,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
     IPaymentService paymentService,
@@ -98,14 +99,35 @@ public class CreateCheckoutSessionHandler(
         var successUrl = SubstituteOrderPlaceholders(request.SuccessUrl, order);
         var cancelUrl = SubstituteOrderPlaceholders(request.CancelUrl, order);
 
+        // Look up the tenant's connected Stripe account (if any). When the Stripe provider is
+        // active AND the account is complete, the charge is routed there with an application
+        // fee — that's the multi-tenant Connect flow. When using the simulation provider, or
+        // when Stripe hasn't been connected yet, ConnectedAccountId stays null and the charge
+        // (or fake session) lands on the platform account.
+        var paymentAccounts = await paymentAccountRepo.FindAsync(_ => true, ct);
+        var paymentAccount = paymentAccounts.FirstOrDefault();
+
+        // Stripe provider + no-or-incomplete account → block. Simulation has no such gate.
+        if (paymentService.ProviderName == "stripe" && paymentAccount?.CanAcceptPayments != true)
+            throw new BadRequestException(
+                "This store isn't accepting online payments yet. The merchant needs to finish their Stripe Connect onboarding.");
+
+        var platformFeePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
+        var connectedAccountId = paymentAccount?.Provider == paymentService.ProviderName
+            ? paymentAccount.AccountId
+            : null;
+
         var session = await paymentService.CreateSessionAsync(new CreatePaymentSessionRequest(
+            currentTenant.TenantId,
             order.Id,
             order.Number,
             currency,
             paymentLines,
             customer.Email,
             successUrl,
-            cancelUrl), ct);
+            cancelUrl,
+            connectedAccountId,
+            platformFeePercent), ct);
 
         order.AttachPaymentSession(session.Provider, session.SessionId);
         // Don't call orderRepo.Update — the order is already in Added state; mutations are
