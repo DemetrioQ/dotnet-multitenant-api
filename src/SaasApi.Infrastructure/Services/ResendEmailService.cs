@@ -1,15 +1,16 @@
-using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Common.Settings;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.Infrastructure.Services;
 
 public class ResendEmailService(
     HttpClient httpClient,
+    IEmailTemplateRenderer renderer,
     IOptions<ResendSettings> settings,
     ILogger<ResendEmailService> logger) : IEmailService
 {
@@ -44,38 +45,26 @@ public class ResendEmailService(
             $"<p><a href=\"{inviteLink}\">Accept invitation</a></p>",
             ct);
 
-    public Task SendCustomerVerificationEmailAsync(string toEmail, string storeName, string verificationLink, CancellationToken ct = default)
+    public async Task SendTenantEmailAsync(
+        Guid tenantId,
+        string storeName,
+        string toEmail,
+        EmailTemplateType type,
+        object model,
+        CancellationToken ct = default)
     {
-        var safeStore = WebUtility.HtmlEncode(storeName);
-        return SendAsync(
-            toEmail,
-            fromName: storeName,
-            $"Confirm your email for {storeName}",
-            $"<p>Thanks for signing up at <strong>{safeStore}</strong>!</p>" +
-            $"<p>Confirm your email address to finish setting up your account:</p>" +
-            $"<p><a href=\"{verificationLink}\">Confirm my email</a></p>" +
-            $"<p>If you didn't create an account at {safeStore}, you can safely ignore this message.</p>",
-            ct);
-    }
+        var rendered = await renderer.RenderAsync(tenantId, type, model, ct);
+        if (!rendered.Enabled)
+        {
+            logger.LogInformation("Tenant email {Type} skipped (disabled) for tenant {TenantId}", type, tenantId);
+            return;
+        }
 
-    public Task SendCustomerPasswordResetEmailAsync(string toEmail, string storeName, string resetLink, CancellationToken ct = default)
-    {
-        var safeStore = WebUtility.HtmlEncode(storeName);
-        return SendAsync(
-            toEmail,
-            fromName: storeName,
-            $"Reset your {storeName} password",
-            $"<p>We received a request to reset your password for your account at <strong>{safeStore}</strong>.</p>" +
-            $"<p><a href=\"{resetLink}\">Choose a new password</a></p>" +
-            $"<p>This link expires in 1 hour. If you didn't request a reset, you can ignore this message.</p>",
-            ct);
+        await SendAsync(toEmail, storeName, rendered.Subject, rendered.HtmlBody, ct);
     }
 
     private async Task SendAsync(string to, string? fromName, string subject, string html, CancellationToken ct)
     {
-        // Display name overrides the platform default (e.g., "Acme Widgets" instead of "SaaS API")
-        // but the sending address stays on the platform's verified domain for DMARC alignment.
-        // Strip stray angle brackets / quotes so a weird store name can't malform the From header.
         var display = SanitizeDisplayName(fromName ?? _cfg.FromName);
 
         var payload = new

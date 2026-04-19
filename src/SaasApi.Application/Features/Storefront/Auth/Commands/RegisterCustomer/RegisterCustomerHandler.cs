@@ -41,6 +41,7 @@ public class RegisterCustomerHandler(
             customer.Id,
             verification.Token,
             tenant.Name,
-            storeUrlBuilder.BuildUrl(tenant.Slug));
+            storeUrlBuilder.BuildUrl(tenant.Slug),
+            customer.FirstName);
     }
 }

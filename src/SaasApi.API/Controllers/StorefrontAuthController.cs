@@ -11,6 +11,7 @@ using SaasApi.Application.Features.Storefront.Auth.Commands.RegisterCustomer;
 using SaasApi.Application.Features.Storefront.Auth.Commands.ResendCustomerVerification;
 using SaasApi.Application.Features.Storefront.Auth.Commands.ResetCustomerPassword;
 using SaasApi.Application.Features.Storefront.Auth.Commands.VerifyCustomerEmail;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers;
 
@@ -21,7 +22,8 @@ namespace SaasApi.API.Controllers;
 public class StorefrontAuthController(
     IMediator mediator,
     IWebHostEnvironment env,
-    IBackgroundJobQueue jobQueue) : ControllerBase
+    IBackgroundJobQueue jobQueue,
+    ICurrentTenantService currentTenant) : ControllerBase
 {
     private const string CustomerRefreshCookie = "customerRefreshToken";
 
@@ -30,13 +32,18 @@ public class StorefrontAuthController(
     {
         var result = await mediator.Send(command, ct);
 
-        var verificationLink = $"{result.StoreUrl.TrimEnd('/')}/verify-email?token={result.EmailVerificationToken}";
-        var email = command.Email;
-        var storeName = result.StoreName;
+        var tenantId = currentTenant.TenantId;
+        var storeUrl = result.StoreUrl.TrimEnd('/');
+        var verificationLink = $"{storeUrl}/verify-email?token={result.EmailVerificationToken}";
+        var model = new CustomerVerificationModel(
+            result.StoreName, storeUrl, result.CustomerFirstName, command.Email, verificationLink);
+
         await jobQueue.EnqueueAsync(async (sp, jobCt) =>
         {
             var emailService = sp.GetRequiredService<IEmailService>();
-            await emailService.SendCustomerVerificationEmailAsync(email, storeName, verificationLink, jobCt);
+            await emailService.SendTenantEmailAsync(
+                tenantId, result.StoreName, command.Email,
+                EmailTemplateType.CustomerVerification, model, jobCt);
         }, ct);
 
         return CreatedAtAction(nameof(Register), new { customerId = result.CustomerId }, new { result.CustomerId });
@@ -85,13 +92,20 @@ public class StorefrontAuthController(
 
         if (result.Token is not null && result.StoreName is not null && result.StoreUrl is not null)
         {
-            var link = $"{result.StoreUrl.TrimEnd('/')}/verify-email?token={result.Token}";
-            var email = command.Email;
+            var tenantId = currentTenant.TenantId;
+            var storeUrl = result.StoreUrl.TrimEnd('/');
+            var link = $"{storeUrl}/verify-email?token={result.Token}";
             var storeName = result.StoreName;
+            var firstName = result.CustomerFirstName ?? "";
+            var email = command.Email;
+            var model = new CustomerVerificationModel(storeName, storeUrl, firstName, email, link);
+
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
             {
                 var emailService = sp.GetRequiredService<IEmailService>();
-                await emailService.SendCustomerVerificationEmailAsync(email, storeName, link, jobCt);
+                await emailService.SendTenantEmailAsync(
+                    tenantId, storeName, email,
+                    EmailTemplateType.CustomerVerification, model, jobCt);
             }, ct);
         }
 
@@ -106,13 +120,20 @@ public class StorefrontAuthController(
 
         if (result.ResetToken is not null && result.StoreName is not null && result.StoreUrl is not null)
         {
-            var link = $"{result.StoreUrl.TrimEnd('/')}/reset-password?token={result.ResetToken}";
+            var tenantId = currentTenant.TenantId;
+            var storeUrl = result.StoreUrl.TrimEnd('/');
+            var link = $"{storeUrl}/reset-password?token={result.ResetToken}";
             var email = result.Email!;
             var storeName = result.StoreName;
+            var firstName = result.CustomerFirstName ?? "";
+            var model = new CustomerPasswordResetModel(storeName, storeUrl, firstName, email, link);
+
             await jobQueue.EnqueueAsync(async (sp, jobCt) =>
             {
                 var emailService = sp.GetRequiredService<IEmailService>();
-                await emailService.SendCustomerPasswordResetEmailAsync(email, storeName, link, jobCt);
+                await emailService.SendTenantEmailAsync(
+                    tenantId, storeName, email,
+                    EmailTemplateType.CustomerPasswordReset, model, jobCt);
             }, ct);
         }
 

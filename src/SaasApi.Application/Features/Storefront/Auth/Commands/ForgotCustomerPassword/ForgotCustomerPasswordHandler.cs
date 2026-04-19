@@ -16,11 +16,11 @@ public class ForgotCustomerPasswordHandler(
     public async Task<ForgotCustomerPasswordResult> Handle(ForgotCustomerPasswordCommand request, CancellationToken ct)
     {
         if (!currentTenantService.IsResolved)
-            return new ForgotCustomerPasswordResult(null, null, null, null);
+            return new ForgotCustomerPasswordResult(null, null, null, null, null);
 
         var customers = await customerRepo.FindAsync(c => c.Email == request.Email, ct);
         if (!customers.Any() || !customers.First().IsActive)
-            return new ForgotCustomerPasswordResult(null, null, null, null);
+            return new ForgotCustomerPasswordResult(null, null, null, null, null);
 
         var customer = customers.First();
 
@@ -30,12 +30,13 @@ public class ForgotCustomerPasswordHandler(
 
         var tenant = await tenantRepo.GetByIdAsync(customer.TenantId, ct);
         if (tenant is null)
-            return new ForgotCustomerPasswordResult(null, null, null, null);
+            return new ForgotCustomerPasswordResult(null, null, null, null, null);
 
         return new ForgotCustomerPasswordResult(
             customer.Email,
             reset.Token,
             tenant.Name,
-            storeUrlBuilder.BuildUrl(tenant.Slug));
+            storeUrlBuilder.BuildUrl(tenant.Slug),
+            customer.FirstName);
     }
 }

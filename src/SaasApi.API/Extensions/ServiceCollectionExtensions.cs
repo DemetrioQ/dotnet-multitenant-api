@@ -62,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IStoreUrlBuilder, StoreUrlBuilder>();
+        services.AddScoped<IEmailTemplateRenderer, SaasApi.Infrastructure.Services.Email.EmailTemplateRenderer>();
 
         var resendApiKey = config["Resend:ApiKey"];
         if (!string.IsNullOrWhiteSpace(resendApiKey))

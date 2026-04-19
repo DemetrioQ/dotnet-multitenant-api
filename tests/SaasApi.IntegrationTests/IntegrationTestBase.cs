@@ -5,11 +5,22 @@ using SaasApi.Infrastructure.Persistence;
 using SaasApi.IntegrationTests;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 public abstract class IntegrationTestBase
 {
     protected readonly HttpClient Client;
     protected readonly WebAppFactory Factory;
+
+    /// <summary>
+    /// Matches the API's JsonStringEnumConverter so response payloads with enum-typed
+    /// properties (EmailTemplateType, OrderStatus, etc.) round-trip correctly in tests.
+    /// </summary>
+    protected static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: true) }
+    };
 
     protected IntegrationTestBase(WebAppFactory factory)
     {

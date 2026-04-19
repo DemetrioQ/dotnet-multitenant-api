@@ -1,4 +1,5 @@
 using MediatR;
+using SaasApi.Application.Common;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
@@ -11,13 +12,17 @@ public class HandlePaymentWebhookHandler(
     IRepository<Product> productRepo,
     IRepository<CartItem> cartItemRepo,
     IRepository<Domain.Entities.Cart> cartRepo,
+    IRepository<Customer> customerRepo,
+    IRepository<Tenant> tenantRepo,
+    IRepository<TenantSettings> settingsRepo,
+    IStoreUrlBuilder storeUrlBuilder,
+    IBackgroundJobQueue jobQueue,
     IPaymentService paymentService,
     IAuditService auditService)
     : IRequestHandler<HandlePaymentWebhookCommand>
 {
     public async Task Handle(HandlePaymentWebhookCommand request, CancellationToken ct)
     {
-        // Invalid signatures throw UnauthorizedAccessException — controller maps that to 401.
         var evt = paymentService.ParseWebhook(request.Payload, request.SignatureHeader);
 
         if (evt.Kind == PaymentEventKind.Unknown) return;
@@ -46,7 +51,6 @@ public class HandlePaymentWebhookHandler(
         order.MarkPaid();
         orderRepo.Update(order);
 
-        // Clear the customer's cart items.
         var carts = await cartRepo.FindGlobalAsync(c => c.CustomerId == order.CustomerId, ct);
         var cart = carts.FirstOrDefault();
         if (cart is not null)
@@ -63,13 +67,14 @@ public class HandlePaymentWebhookHandler(
             order.Id,
             $"Order {order.Number} marked paid via {order.PaymentProvider}.",
             ct);
+
+        await EnqueueOrderEmailAsync(EmailTemplateType.OrderPaid, order, ct);
     }
 
     private async Task HandleSessionExpiredAsync(Order order, CancellationToken ct)
     {
         if (order.Status != OrderStatus.Pending) return;
 
-        // Restore stock for each line, then cancel.
         var items = await orderItemRepo.FindGlobalAsync(i => i.OrderId == order.Id, ct);
         foreach (var item in items)
         {
@@ -77,7 +82,6 @@ public class HandlePaymentWebhookHandler(
             var product = products.FirstOrDefault();
             if (product is null) continue;
 
-            // Increment stock back — use Update (Product has no Increment, but Update allows us to set it).
             product.Update(product.Name, product.Description, product.Price, product.Stock + item.Quantity);
             productRepo.Update(product);
         }
@@ -91,6 +95,28 @@ public class HandlePaymentWebhookHandler(
             "Order",
             order.Id,
             $"Order {order.Number} canceled (payment session expired). Stock restored.",
+            ct);
+    }
+
+    private async Task EnqueueOrderEmailAsync(EmailTemplateType type, Order order, CancellationToken ct)
+    {
+        var customers = await customerRepo.FindGlobalAsync(c => c.Id == order.CustomerId, ct);
+        var customer = customers.FirstOrDefault();
+        if (customer is null) return;
+
+        var tenant = await tenantRepo.GetByIdAsync(order.TenantId, ct);
+        if (tenant is null) return;
+
+        var settings = (await settingsRepo.FindGlobalAsync(s => s.TenantId == order.TenantId, ct)).FirstOrDefault();
+
+        await OrderEmailDispatcher.EnqueueAsync(
+            jobQueue,
+            type,
+            order,
+            customer,
+            tenant.Name,
+            storeUrlBuilder.BuildUrl(tenant.Slug),
+            settings?.Currency ?? "USD",
             ct);
     }
 }

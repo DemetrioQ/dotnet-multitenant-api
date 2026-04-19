@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Domain.Entities;
 
 namespace SaasApi.Infrastructure.Services;
 
@@ -7,7 +8,9 @@ namespace SaasApi.Infrastructure.Services;
 /// Development email service — logs email content instead of sending.
 /// Replaced by ResendEmailService when Resend:ApiKey is configured.
 /// </summary>
-public class EmailService(ILogger<EmailService> logger) : IEmailService
+public class EmailService(
+    IEmailTemplateRenderer renderer,
+    ILogger<EmailService> logger) : IEmailService
 {
     public Task SendVerificationEmailAsync(string toEmail, string verificationLink, CancellationToken ct = default)
     {
@@ -33,19 +36,25 @@ public class EmailService(ILogger<EmailService> logger) : IEmailService
         return Task.CompletedTask;
     }
 
-    public Task SendCustomerVerificationEmailAsync(string toEmail, string storeName, string verificationLink, CancellationToken ct = default)
+    public async Task SendTenantEmailAsync(
+        Guid tenantId,
+        string storeName,
+        string toEmail,
+        EmailTemplateType type,
+        object model,
+        CancellationToken ct = default)
     {
-        logger.LogInformation(
-            "[EMAIL] From: {StoreFrom} | To: {Email} | Subject: Confirm your email for {StoreSubject} | Link: {Link}",
-            storeName, toEmail, storeName, verificationLink);
-        return Task.CompletedTask;
-    }
+        var rendered = await renderer.RenderAsync(tenantId, type, model, ct);
+        if (!rendered.Enabled)
+        {
+            logger.LogInformation(
+                "[EMAIL] SKIPPED (disabled) | Tenant: {TenantId} | Type: {Type} | To: {Email}",
+                tenantId, type, toEmail);
+            return;
+        }
 
-    public Task SendCustomerPasswordResetEmailAsync(string toEmail, string storeName, string resetLink, CancellationToken ct = default)
-    {
         logger.LogInformation(
-            "[EMAIL] From: {StoreFrom} | To: {Email} | Subject: Reset your {StoreSubject} password | Link: {Link}",
-            storeName, toEmail, storeName, resetLink);
-        return Task.CompletedTask;
+            "[EMAIL] From: {Store} | To: {Email} | Type: {Type} | Subject: {Subject}",
+            storeName, toEmail, type, rendered.Subject);
     }
 }

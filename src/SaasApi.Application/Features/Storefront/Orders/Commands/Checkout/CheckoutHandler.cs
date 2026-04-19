@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Configuration;
+using SaasApi.Application.Common;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Common.Inventory;
@@ -15,6 +16,10 @@ public class CheckoutHandler(
     IRepository<Order> orderRepo,
     IRepository<OrderItem> orderItemRepo,
     IRepository<CustomerAddress> addressRepo,
+    IRepository<Customer> customerRepo,
+    IRepository<Tenant> tenantRepo,
+    IRepository<TenantSettings> settingsRepo,
+    IStoreUrlBuilder storeUrlBuilder,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
     IBackgroundJobQueue jobQueue,
@@ -77,6 +82,24 @@ public class CheckoutHandler(
         await orderRepo.SaveChangesAsync(ct);
 
         await LowStockAlerter.CheckAsync(jobQueue, config, stockChanges, ct);
+
+        // Fire the order-placed email after commit. The simple /checkout path has no
+        // payment gateway, so this is the only "thanks for your order" message.
+        var customer = (await customerRepo.FindAsync(c => c.Id == currentCustomer.CustomerId, ct)).First();
+        var tenant = await tenantRepo.GetByIdAsync(currentTenant.TenantId, ct);
+        if (tenant is not null)
+        {
+            var settings = (await settingsRepo.FindAsync(_ => true, ct)).FirstOrDefault();
+            await OrderEmailDispatcher.EnqueueAsync(
+                jobQueue,
+                EmailTemplateType.OrderPlaced,
+                order,
+                customer,
+                tenant.Name,
+                storeUrlBuilder.BuildUrl(tenant.Slug),
+                settings?.Currency ?? "USD",
+                ct);
+        }
 
         return OrderDto.FromEntity(order, orderItems);
     }

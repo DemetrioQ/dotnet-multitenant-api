@@ -1,4 +1,5 @@
 using MediatR;
+using SaasApi.Application.Common;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -10,6 +11,10 @@ public class FulfillOrderHandler(
     IRepository<Order> orderRepo,
     IRepository<OrderItem> itemRepo,
     IRepository<Customer> customerRepo,
+    IRepository<Tenant> tenantRepo,
+    IRepository<TenantSettings> settingsRepo,
+    IStoreUrlBuilder storeUrlBuilder,
+    IBackgroundJobQueue jobQueue,
     IAuditService auditService)
     : IRequestHandler<FulfillOrderCommand, MerchantOrderDto>
 {
@@ -34,6 +39,23 @@ public class FulfillOrderHandler(
 
         var items = await itemRepo.FindAsync(i => i.OrderId == order.Id, ct);
         var customers = await customerRepo.FindAsync(c => c.Id == order.CustomerId, ct);
-        return MerchantOrderDto.FromEntity(order, customers.First(), items);
+        var customer = customers.First();
+
+        var tenant = await tenantRepo.GetByIdAsync(order.TenantId, ct);
+        if (tenant is not null)
+        {
+            var settings = (await settingsRepo.FindAsync(_ => true, ct)).FirstOrDefault();
+            await OrderEmailDispatcher.EnqueueAsync(
+                jobQueue,
+                EmailTemplateType.OrderFulfilled,
+                order,
+                customer,
+                tenant.Name,
+                storeUrlBuilder.BuildUrl(tenant.Slug),
+                settings?.Currency ?? "USD",
+                ct);
+        }
+
+        return MerchantOrderDto.FromEntity(order, customer, items);
     }
 }
