@@ -14,6 +14,7 @@ public class CheckoutHandler(
     IRepository<Product> productRepo,
     IRepository<Order> orderRepo,
     IRepository<OrderItem> orderItemRepo,
+    IRepository<CustomerAddress> addressRepo,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
     IBackgroundJobQueue jobQueue,
@@ -44,8 +45,8 @@ public class CheckoutHandler(
 
         var subtotal = cartItems.Sum(ci => productsById[ci.ProductId].Price * ci.Quantity);
 
-        var shipping = Map(request.ShippingAddress);
-        var billing = Map(request.BillingAddress ?? request.ShippingAddress);
+        var shipping = await ResolveShippingAsync(request, addressRepo, currentCustomer, ct);
+        var billing = await ResolveBillingAsync(request, shipping, addressRepo, currentCustomer, ct);
 
         var order = Order.Create(
             currentTenant.TenantId,
@@ -78,6 +79,52 @@ public class CheckoutHandler(
         await LowStockAlerter.CheckAsync(jobQueue, config, stockChanges, ct);
 
         return OrderDto.FromEntity(order, orderItems);
+    }
+
+    internal static async Task<Address> ResolveShippingAsync(
+        CheckoutCommand request,
+        IRepository<CustomerAddress> addressRepo,
+        ICurrentCustomerService currentCustomer,
+        CancellationToken ct)
+    {
+        if (request.ShippingAddress is not null)
+            return Map(request.ShippingAddress);
+
+        if (request.ShippingAddressId is not null)
+            return await LoadSavedAsync(request.ShippingAddressId.Value, addressRepo, currentCustomer, ct);
+
+        throw new BadRequestException("A shipping address is required.");
+    }
+
+    internal static async Task<Address> ResolveBillingAsync(
+        CheckoutCommand request,
+        Address shippingFallback,
+        IRepository<CustomerAddress> addressRepo,
+        ICurrentCustomerService currentCustomer,
+        CancellationToken ct)
+    {
+        if (request.BillingAddress is not null)
+            return Map(request.BillingAddress);
+
+        if (request.BillingAddressId is not null)
+            return await LoadSavedAsync(request.BillingAddressId.Value, addressRepo, currentCustomer, ct);
+
+        // No billing provided → reuse a fresh copy of shipping so EF doesn't share one reference.
+        return new Address(shippingFallback.Line1, shippingFallback.Line2, shippingFallback.City,
+            shippingFallback.Region, shippingFallback.PostalCode, shippingFallback.Country);
+    }
+
+    private static async Task<Address> LoadSavedAsync(
+        Guid addressId,
+        IRepository<CustomerAddress> addressRepo,
+        ICurrentCustomerService currentCustomer,
+        CancellationToken ct)
+    {
+        var matches = await addressRepo.FindAsync(
+            a => a.Id == addressId && a.CustomerId == currentCustomer.CustomerId, ct);
+        var saved = matches.FirstOrDefault()
+                    ?? throw new NotFoundException("Saved address not found.");
+        return saved.ToAddress();
     }
 
     private static Address Map(CheckoutAddressInput a) =>

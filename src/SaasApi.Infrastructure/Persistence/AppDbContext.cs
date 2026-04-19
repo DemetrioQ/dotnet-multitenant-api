@@ -27,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,6 +86,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         modelBuilder.Entity<OrderItem>()
             .HasQueryFilter(i => i.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<CustomerAddress>()
+            .HasQueryFilter(a => a.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

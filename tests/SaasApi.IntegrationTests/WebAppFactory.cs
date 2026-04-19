@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SaasApi.Application.Common.Interfaces;
 using SaasApi.Infrastructure.Persistence;
+using SaasApi.Infrastructure.Services.Payments;
 
 namespace SaasApi.IntegrationTests;
 
@@ -16,7 +18,7 @@ public class WebAppFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        _connection.Open(); // open once, stays alive for all requests
+        _connection.Open();
 
         builder.UseEnvironment("Testing");
 
@@ -26,7 +28,8 @@ public class WebAppFactory : WebApplicationFactory<Program>
             {
                 ["Jwt:Secret"] = "test-super-secret-key-that-is-long-enough-32chars",
                 ["Jwt:Issuer"] = "SaasApi-Test",
-                ["Jwt:Audience"] = "SaasApi-Test"
+                ["Jwt:Audience"] = "SaasApi-Test",
+                ["Payments:Provider"] = "simulation"
             });
         });
 
@@ -43,9 +46,16 @@ public class WebAppFactory : WebApplicationFactory<Program>
             foreach (var descriptor in toRemove)
                 services.Remove(descriptor);
 
-            // pass the open connection, not a connection string
             services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlite(_connection));
+
+            // Force simulation payment service so tests don't need Stripe keys
+            // regardless of what Payments:Provider is set to in appsettings.json.
+            var paymentDescriptors = services
+                .Where(d => d.ServiceType == typeof(IPaymentService))
+                .ToList();
+            foreach (var d in paymentDescriptors) services.Remove(d);
+            services.AddScoped<IPaymentService, SimulationPaymentService>();
         });
     }
 
@@ -55,7 +65,7 @@ public class WebAppFactory : WebApplicationFactory<Program>
 
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.EnsureCreated(); // connection already open, no OpenConnection() needed
+        db.Database.EnsureCreated();
 
         return host;
     }

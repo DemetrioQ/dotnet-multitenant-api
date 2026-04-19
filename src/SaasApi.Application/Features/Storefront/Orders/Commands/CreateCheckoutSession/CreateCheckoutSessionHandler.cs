@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Common.Inventory;
+using SaasApi.Application.Features.Storefront.Orders.Commands.Checkout;
 using SaasApi.Domain.Entities;
 using SaasApi.Domain.Interfaces;
 
@@ -15,6 +16,7 @@ public class CreateCheckoutSessionHandler(
     IRepository<Order> orderRepo,
     IRepository<OrderItem> orderItemRepo,
     IRepository<Customer> customerRepo,
+    IRepository<CustomerAddress> addressRepo,
     IRepository<TenantSettings> settingsRepo,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
@@ -47,11 +49,15 @@ public class CreateCheckoutSessionHandler(
 
         var subtotal = cartItems.Sum(ci => productsById[ci.ProductId].Price * ci.Quantity);
 
-        var shipping = new Address(request.ShippingAddress.Line1, request.ShippingAddress.Line2,
-            request.ShippingAddress.City, request.ShippingAddress.Region,
-            request.ShippingAddress.PostalCode, request.ShippingAddress.Country);
-        var b = request.BillingAddress ?? request.ShippingAddress;
-        var billing = new Address(b.Line1, b.Line2, b.City, b.Region, b.PostalCode, b.Country);
+        // Resolve shipping / billing from inline input or saved-address id. Shares the
+        // same resolution logic as the non-payment POST /checkout path.
+        var checkoutLikeCommand = new CheckoutCommand(
+            request.ShippingAddress,
+            request.BillingAddress,
+            request.ShippingAddressId,
+            request.BillingAddressId);
+        var shipping = await CheckoutHandler.ResolveShippingAsync(checkoutLikeCommand, addressRepo, currentCustomer, ct);
+        var billing = await CheckoutHandler.ResolveBillingAsync(checkoutLikeCommand, shipping, addressRepo, currentCustomer, ct);
 
         var order = Order.Create(
             currentTenant.TenantId,

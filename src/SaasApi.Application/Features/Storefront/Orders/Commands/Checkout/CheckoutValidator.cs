@@ -6,11 +6,20 @@ public class CheckoutValidator : AbstractValidator<CheckoutCommand>
 {
     public CheckoutValidator()
     {
-        RuleFor(x => x.ShippingAddress).NotNull().SetValidator(new CheckoutAddressValidator());
+        // Must supply shipping via inline OR id, not both, not neither.
+        RuleFor(x => x)
+            .Must(x => (x.ShippingAddress != null) ^ (x.ShippingAddressId != null))
+            .WithMessage("Provide exactly one of shippingAddress or shippingAddressId.");
+
+        // Billing: if both are supplied, reject. Neither is fine (inherits shipping).
+        RuleFor(x => x)
+            .Must(x => !(x.BillingAddress != null && x.BillingAddressId != null))
+            .WithMessage("Provide at most one of billingAddress or billingAddressId.");
+
+        When(x => x.ShippingAddress != null, () =>
+            RuleFor(x => x.ShippingAddress!).SetValidator(new CheckoutAddressValidator()));
         When(x => x.BillingAddress != null, () =>
-        {
-            RuleFor(x => x.BillingAddress!).SetValidator(new CheckoutAddressValidator());
-        });
+            RuleFor(x => x.BillingAddress!).SetValidator(new CheckoutAddressValidator()));
     }
 }
 

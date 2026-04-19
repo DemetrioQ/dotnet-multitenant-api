@@ -5,24 +5,22 @@ using Stripe.Checkout;
 
 namespace SaasApi.Infrastructure.Services.Payments;
 
-public class StripePaymentService : IPaymentService
+public class StripePaymentService(IConfiguration config) : IPaymentService
 {
-    private readonly string _secretKey;
-    private readonly string _webhookSecret;
-
     public string ProviderName => "stripe";
 
-    public StripePaymentService(IConfiguration config)
-    {
-        _secretKey = config["Stripe:SecretKey"]
-            ?? throw new InvalidOperationException("Stripe:SecretKey is not configured.");
-        _webhookSecret = config["Stripe:WebhookSecret"]
-            ?? throw new InvalidOperationException("Stripe:WebhookSecret is not configured.");
-        StripeConfiguration.ApiKey = _secretKey;
-    }
+    private string SecretKey =>
+        config["Stripe:SecretKey"]
+        ?? throw new InvalidOperationException("Stripe:SecretKey is not configured.");
+
+    private string WebhookSecret =>
+        config["Stripe:WebhookSecret"]
+        ?? throw new InvalidOperationException("Stripe:WebhookSecret is not configured.");
 
     public async Task<PaymentSession> CreateSessionAsync(CreatePaymentSessionRequest request, CancellationToken ct)
     {
+        StripeConfiguration.ApiKey = SecretKey;
+
         var options = new SessionCreateOptions
         {
             Mode = "payment",
@@ -66,7 +64,7 @@ public class StripePaymentService : IPaymentService
         Event stripeEvent;
         try
         {
-            stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, _webhookSecret);
+            stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, WebhookSecret);
         }
         catch (StripeException)
         {

@@ -36,16 +36,16 @@ public class EmailService(ILogger<EmailService> logger) : IEmailService
     public Task SendCustomerVerificationEmailAsync(string toEmail, string storeName, string verificationLink, CancellationToken ct = default)
     {
         logger.LogInformation(
-            "[EMAIL] From: {Store} | To: {Email} | Subject: Confirm your email for {Store} | Link: {Link}",
-            storeName, toEmail, verificationLink);
+            "[EMAIL] From: {StoreFrom} | To: {Email} | Subject: Confirm your email for {StoreSubject} | Link: {Link}",
+            storeName, toEmail, storeName, verificationLink);
         return Task.CompletedTask;
     }
 
     public Task SendCustomerPasswordResetEmailAsync(string toEmail, string storeName, string resetLink, CancellationToken ct = default)
     {
         logger.LogInformation(
-            "[EMAIL] From: {Store} | To: {Email} | Subject: Reset your {Store} password | Link: {Link}",
-            storeName, toEmail, resetLink);
+            "[EMAIL] From: {StoreFrom} | To: {Email} | Subject: Reset your {StoreSubject} password | Link: {Link}",
+            storeName, toEmail, storeName, resetLink);
         return Task.CompletedTask;
     }
 }
