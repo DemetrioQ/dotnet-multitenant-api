@@ -11,6 +11,11 @@ public class Order : BaseEntity, ITenantEntity
     public decimal Subtotal { get; private set; }
     public decimal Total { get; private set; }
 
+    // Platform fee snapshot. Captured at checkout so historical rows stay correct
+    // even if the configured percent changes later. NetAmount = Total - PlatformFeeAmount.
+    public decimal PlatformFeePercent { get; private set; }
+    public decimal PlatformFeeAmount { get; private set; }
+
     public string ShippingLine1 { get; private set; } = default!;
     public string? ShippingLine2 { get; private set; }
     public string ShippingCity { get; private set; } = default!;
@@ -40,7 +45,8 @@ public class Order : BaseEntity, ITenantEntity
         string number,
         decimal subtotal,
         Address shipping,
-        Address billing) =>
+        Address billing,
+        decimal platformFeePercent = 0m) =>
         new()
         {
             TenantId = tenantId,
@@ -48,6 +54,8 @@ public class Order : BaseEntity, ITenantEntity
             Number = number,
             Subtotal = subtotal,
             Total = subtotal, // no tax/shipping yet
+            PlatformFeePercent = platformFeePercent,
+            PlatformFeeAmount = Math.Round(subtotal * platformFeePercent, 2, MidpointRounding.AwayFromZero),
             ShippingLine1 = shipping.Line1,
             ShippingLine2 = shipping.Line2,
             ShippingCity = shipping.City,

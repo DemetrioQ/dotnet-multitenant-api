@@ -191,6 +191,5 @@ public class StorefrontTests(WebAppFactory factory) : IntegrationTestBase(factor
         var info = await response.Content.ReadFromJsonAsync<StorefrontInfoDto>();
         info!.Slug.Should().Be(slug);
         info.Name.Should().Be("Storefront Info Co");
-        info.Currency.Should().NotBeNullOrWhiteSpace();
     }
 }

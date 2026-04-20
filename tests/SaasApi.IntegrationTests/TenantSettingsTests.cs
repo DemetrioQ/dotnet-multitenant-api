@@ -21,9 +21,7 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<TenantResult>();
-        body!.Timezone.Should().Be("UTC");
-        body.Currency.Should().Be("USD");
-        body.SupportEmail.Should().BeNull();
+        body!.SupportEmail.Should().BeNull();
         body.WebsiteUrl.Should().BeNull();
     }
 
@@ -39,8 +37,6 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
         var response = await Client.PutAsJsonAsync($"/api/v1/tenants/{tenant.TenantId}", new
         {
             name = "Settings Co 2 Updated",
-            timezone = "America/New_York",
-            currency = "EUR",
             supportEmail = "support@acme.com",
             websiteUrl = "https://acme.com"
         });
@@ -48,8 +44,6 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<TenantResult>();
         body!.Name.Should().Be("Settings Co 2 Updated");
-        body.Timezone.Should().Be("America/New_York");
-        body.Currency.Should().Be("EUR");
         body.SupportEmail.Should().Be("support@acme.com");
         body.WebsiteUrl.Should().Be("https://acme.com");
     }
@@ -66,16 +60,13 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
         await Client.PutAsJsonAsync($"/api/v1/tenants/{tenant.TenantId}", new
         {
             name = "Settings Co 3",
-            timezone = "Europe/London",
-            currency = "GBP",
-            supportEmail = (string?)null,
+            supportEmail = "hello@co3.com",
             websiteUrl = (string?)null
         });
 
         var response = await Client.GetAsync("/api/v1/tenants/me");
         var body = await response.Content.ReadFromJsonAsync<TenantResult>();
-        body!.Timezone.Should().Be("Europe/London");
-        body.Currency.Should().Be("GBP");
+        body!.SupportEmail.Should().Be("hello@co3.com");
     }
 
     [Fact]
@@ -92,34 +83,11 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
         var response = await Client.PutAsJsonAsync($"/api/v1/tenants/{tenant.TenantId}", new
         {
             name = "Settings Co 4",
-            timezone = "UTC",
-            currency = "USD",
             supportEmail = (string?)null,
             websiteUrl = (string?)null
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task UpdateTenant_InvalidCurrency_Returns400()
-    {
-        var tenantResponse = await Client.PostAsJsonAsync("/api/v1/tenants", new { name = "Settings Co 5", slug = "settings-co-5" });
-        var tenant = await tenantResponse.Content.ReadFromJsonAsync<TenantResult>();
-
-        var adminToken = await GetAuthTokenAsync(Client, tenant!.TenantId, "settings-co-5", "admin5@settings.com");
-        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-
-        var response = await Client.PutAsJsonAsync($"/api/v1/tenants/{tenant.TenantId}", new
-        {
-            name = "Settings Co 5",
-            timezone = "UTC",
-            currency = "dollars",
-            supportEmail = (string?)null,
-            websiteUrl = (string?)null
-        });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -129,5 +97,5 @@ public class TenantSettingsTests(WebAppFactory factory) : IntegrationTestBase(fa
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private record TenantResult(Guid TenantId, string Name, string Timezone, string Currency, string? SupportEmail, string? WebsiteUrl);
+    private record TenantResult(Guid TenantId, string Name, string? SupportEmail, string? WebsiteUrl);
 }

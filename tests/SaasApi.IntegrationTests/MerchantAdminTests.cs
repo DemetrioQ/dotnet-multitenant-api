@@ -263,7 +263,10 @@ public class MerchantAdminTests(WebAppFactory factory) : IntegrationTestBase(fac
         var body = await resp.Content.ReadFromJsonAsync<DashboardSnapshot>();
         body!.CustomerCount.Should().BeGreaterThanOrEqualTo(2);
         body.PaidOrderCount.Should().BeGreaterThanOrEqualTo(2);
-        body.TotalRevenue.Should().BeGreaterThanOrEqualTo(150m); // 50*1 + 50*2
+        body.GrossRevenue.Should().BeGreaterThanOrEqualTo(150m); // 50*1 + 50*2
+        body.PlatformFees.Should().BeGreaterThan(0m);
+        body.NetRevenue.Should().Be(body.GrossRevenue - body.PlatformFees);
+        body.CurrentFeePercent.Should().Be(0.05m);
         body.TopProducts.Should().Contain(tp => tp.Name == "Dash Item");
     }
 
@@ -276,7 +279,10 @@ public class MerchantAdminTests(WebAppFactory factory) : IntegrationTestBase(fac
         int CustomerCount,
         int PendingOrderCount,
         int PaidOrderCount,
-        decimal TotalRevenue,
+        decimal GrossRevenue,
+        decimal PlatformFees,
+        decimal NetRevenue,
+        decimal CurrentFeePercent,
         decimal AverageOrderValue,
         IReadOnlyList<DashboardTopProduct> TopProducts,
         bool OnboardingComplete);

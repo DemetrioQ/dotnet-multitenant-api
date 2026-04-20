@@ -17,7 +17,6 @@ public class CreateCheckoutSessionHandler(
     IRepository<OrderItem> orderItemRepo,
     IRepository<Customer> customerRepo,
     IRepository<CustomerAddress> addressRepo,
-    IRepository<TenantSettings> settingsRepo,
     IRepository<TenantPaymentAccount> paymentAccountRepo,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
@@ -60,13 +59,16 @@ public class CreateCheckoutSessionHandler(
         var shipping = await CheckoutHandler.ResolveShippingAsync(checkoutLikeCommand, addressRepo, currentCustomer, ct);
         var billing = await CheckoutHandler.ResolveBillingAsync(checkoutLikeCommand, shipping, addressRepo, currentCustomer, ct);
 
+        var platformFeePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
+
         var order = Order.Create(
             currentTenant.TenantId,
             currentCustomer.CustomerId,
             GenerateNumber(),
             subtotal,
             shipping,
-            billing);
+            billing,
+            platformFeePercent);
         await orderRepo.AddAsync(order, ct);
 
         var stockChanges = new List<(Product, int)>(cartItems.Count);
@@ -85,8 +87,7 @@ public class CreateCheckoutSessionHandler(
         var customers = await customerRepo.FindAsync(c => c.Id == currentCustomer.CustomerId, ct);
         var customer = customers.First();
 
-        var settingsList = await settingsRepo.FindAsync(_ => true, ct);
-        var currency = settingsList.FirstOrDefault()?.Currency ?? "USD";
+        const string currency = "USD";
 
         var paymentLines = cartItems.Select(ci => new PaymentSessionLineItem(
             productsById[ci.ProductId].Name,
@@ -112,7 +113,6 @@ public class CreateCheckoutSessionHandler(
             throw new BadRequestException(
                 "This store isn't accepting online payments yet. The merchant needs to finish their Stripe Connect onboarding.");
 
-        var platformFeePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
         var connectedAccountId = paymentAccount?.Provider == paymentService.ProviderName
             ? paymentAccount.AccountId
             : null;

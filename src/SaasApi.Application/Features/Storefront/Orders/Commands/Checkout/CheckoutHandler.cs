@@ -18,7 +18,6 @@ public class CheckoutHandler(
     IRepository<CustomerAddress> addressRepo,
     IRepository<Customer> customerRepo,
     IRepository<Tenant> tenantRepo,
-    IRepository<TenantSettings> settingsRepo,
     IStoreUrlBuilder storeUrlBuilder,
     ICurrentTenantService currentTenant,
     ICurrentCustomerService currentCustomer,
@@ -89,7 +88,6 @@ public class CheckoutHandler(
         var tenant = await tenantRepo.GetByIdAsync(currentTenant.TenantId, ct);
         if (tenant is not null)
         {
-            var settings = (await settingsRepo.FindAsync(_ => true, ct)).FirstOrDefault();
             await OrderEmailDispatcher.EnqueueAsync(
                 jobQueue,
                 EmailTemplateType.OrderPlaced,
@@ -97,7 +95,6 @@ public class CheckoutHandler(
                 customer,
                 tenant.Name,
                 storeUrlBuilder.BuildUrl(tenant.Slug),
-                settings?.Currency ?? "USD",
                 ct);
         }
 

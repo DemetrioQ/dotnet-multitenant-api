@@ -17,7 +17,6 @@ public static class OrderEmailDispatcher
         Customer customer,
         string storeName,
         string storeUrl,
-        string currency,
         CancellationToken ct)
     {
         var trimmedStoreUrl = storeUrl.TrimEnd('/');
@@ -28,7 +27,6 @@ public static class OrderEmailDispatcher
             customer.Email,
             order.Number,
             order.Total,
-            currency,
             $"{trimmedStoreUrl}/orders/{order.Id}");
 
         var tenantId = order.TenantId;

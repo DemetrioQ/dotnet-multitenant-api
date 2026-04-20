@@ -1,11 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
 
 namespace SaasApi.Application.Features.Tenants.Queries.GetTenantDashboard;
 
-public class GetTenantDashboardHandler(IAppDbContext db)
+public class GetTenantDashboardHandler(IAppDbContext db, IConfiguration config)
     : IRequestHandler<GetTenantDashboardQuery, TenantDashboardDto>
 {
     public async Task<TenantDashboardDto> Handle(GetTenantDashboardQuery request, CancellationToken ct)
@@ -29,21 +30,26 @@ public class GetTenantDashboardHandler(IAppDbContext db)
 
         var customerCount = await db.Customers.CountAsync(ct);
 
-        // Orders: pending + paid/fulfilled counts + paid revenue in one round-trip.
+        // Orders: pending + paid/fulfilled counts + gross revenue + platform fees in one round-trip.
         var orderStats = await db.Orders
             .GroupBy(_ => 1)
             .Select(g => new
             {
                 Pending = g.Count(o => o.Status == OrderStatus.Pending),
                 Paid = g.Count(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled),
-                PaidRevenue = g
+                GrossRevenue = g
                     .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled)
-                    .Sum(o => (decimal?)o.Total) ?? 0m
+                    .Sum(o => (decimal?)o.Total) ?? 0m,
+                PlatformFees = g
+                    .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled)
+                    .Sum(o => (decimal?)o.PlatformFeeAmount) ?? 0m
             })
             .FirstOrDefaultAsync(ct)
-            ?? new { Pending = 0, Paid = 0, PaidRevenue = 0m };
+            ?? new { Pending = 0, Paid = 0, GrossRevenue = 0m, PlatformFees = 0m };
 
-        var aov = orderStats.Paid == 0 ? 0m : orderStats.PaidRevenue / orderStats.Paid;
+        var netRevenue = orderStats.GrossRevenue - orderStats.PlatformFees;
+        var aov = orderStats.Paid == 0 ? 0m : orderStats.GrossRevenue / orderStats.Paid;
+        var currentFeePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
 
         // Top 5 products by revenue — SQL GROUP BY over OrderItems of paid/fulfilled orders.
         var paidOrderIds = db.Orders
@@ -86,7 +92,10 @@ public class GetTenantDashboardHandler(IAppDbContext db)
             CustomerCount: customerCount,
             PendingOrderCount: orderStats.Pending,
             PaidOrderCount: orderStats.Paid,
-            TotalRevenue: orderStats.PaidRevenue,
+            GrossRevenue: orderStats.GrossRevenue,
+            PlatformFees: orderStats.PlatformFees,
+            NetRevenue: netRevenue,
+            CurrentFeePercent: currentFeePercent,
             AverageOrderValue: aov,
             TopProducts: topProducts,
             OnboardingComplete: onboardingComplete,

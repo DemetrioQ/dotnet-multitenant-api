@@ -257,7 +257,7 @@ public class PerfBenchmark(WebAppFactory factory, ITestOutputHelper output) : In
             ordersSql.Clear();
             itemsSql.Clear();
 
-            ordersSql.Append("INSERT INTO Orders (Id, TenantId, CustomerId, Number, Status, Subtotal, Total, ");
+            ordersSql.Append("INSERT INTO Orders (Id, TenantId, CustomerId, Number, Status, Subtotal, Total, PlatformFeePercent, PlatformFeeAmount, ");
             ordersSql.Append("ShippingLine1, ShippingLine2, ShippingCity, ShippingRegion, ShippingPostalCode, ShippingCountry, ");
             ordersSql.Append("BillingLine1, BillingLine2, BillingCity, BillingRegion, BillingPostalCode, BillingCountry, ");
             ordersSql.Append("PaidAt, FulfilledAt, CanceledAt, PaymentProvider, PaymentSessionId, CreatedAt, UpdatedAt) VALUES ");
@@ -293,8 +293,10 @@ public class PerfBenchmark(WebAppFactory factory, ITestOutputHelper output) : In
                 if (roll <= 7) { status = OrderStatus.Paid; paidAtStr = $"'{createdAt}'"; }
                 if (roll == 10) { status = OrderStatus.Fulfilled; paidAtStr = $"'{createdAt}'"; fulfilledAtStr = $"'{createdAt}'"; }
 
+                var feeAmount = Math.Round(subtotal * 0.05m, 2, MidpointRounding.AwayFromZero);
+
                 if (!firstOrder) ordersSql.Append(','); firstOrder = false;
-                ordersSql.Append(CultureInfo.InvariantCulture, $"('{orderId}','{tenantId}','{cust}','{number}',{(int)status},{subtotal},{subtotal},");
+                ordersSql.Append(CultureInfo.InvariantCulture, $"('{orderId}','{tenantId}','{cust}','{number}',{(int)status},{subtotal},{subtotal},0.05,{feeAmount},");
                 ordersSql.Append("'1 Way',NULL,'X','CA','00000','US',");
                 ordersSql.Append("'1 Way',NULL,'X','CA','00000','US',");
                 ordersSql.Append(CultureInfo.InvariantCulture, $"{paidAtStr},{fulfilledAtStr},NULL,NULL,NULL,'{createdAt}',NULL)");

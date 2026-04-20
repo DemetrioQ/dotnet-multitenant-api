@@ -26,5 +26,8 @@ public record OrderEmailModel(
     string CustomerEmail,
     string OrderNumber,
     decimal OrderTotal,
-    string Currency,
-    string OrderDetailsUrl);
+    string OrderDetailsUrl)
+{
+    // All tenants are USD — kept on the model so existing Scriban templates keep rendering.
+    public string Currency => "USD";
+}

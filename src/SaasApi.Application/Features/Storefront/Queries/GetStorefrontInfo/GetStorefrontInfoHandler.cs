@@ -24,8 +24,6 @@ namespace SaasApi.Application.Features.Storefront.Queries.GetStorefrontInfo
             return new StorefrontInfoDto(
                 tenant.Name,
                 tenant.Slug,
-                settings?.Currency ?? "USD",
-                settings?.Timezone ?? "UTC",
                 settings?.SupportEmail,
                 settings?.WebsiteUrl);
         }

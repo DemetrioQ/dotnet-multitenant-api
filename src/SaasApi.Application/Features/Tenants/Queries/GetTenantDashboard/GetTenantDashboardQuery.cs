@@ -14,7 +14,14 @@ public record TenantDashboardDto(
     int CustomerCount,
     int PendingOrderCount,
     int PaidOrderCount,
-    decimal TotalRevenue,
+    // Revenue breakdown: Gross = sum of Order.Total (product price × qty, pre-fee).
+    // PlatformFees = snapshot of what the platform took via Stripe application_fee.
+    // NetRevenue = what the merchant actually receives (before Stripe processing fees,
+    // which are deducted separately by Stripe and visible in their Stripe dashboard).
+    decimal GrossRevenue,
+    decimal PlatformFees,
+    decimal NetRevenue,
+    decimal CurrentFeePercent,
     decimal AverageOrderValue,
     IReadOnlyList<TopProductDto> TopProducts,
     bool OnboardingComplete,

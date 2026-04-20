@@ -24,4 +24,5 @@ public interface IAppDbContext
     DbSet<CartItem> CartItems { get; }
     DbSet<TenantOnboardingStatus> TenantOnboardingStatuses { get; }
     DbSet<AuditLogEntry> AuditLogEntries { get; }
+    DbSet<TenantSettings> TenantSettings { get; }
 }

@@ -14,7 +14,6 @@ public class HandlePaymentWebhookHandler(
     IRepository<Domain.Entities.Cart> cartRepo,
     IRepository<Customer> customerRepo,
     IRepository<Tenant> tenantRepo,
-    IRepository<TenantSettings> settingsRepo,
     IRepository<TenantPaymentAccount> paymentAccountRepo,
     IStoreUrlBuilder storeUrlBuilder,
     IBackgroundJobQueue jobQueue,
@@ -142,8 +141,6 @@ public class HandlePaymentWebhookHandler(
         var tenant = await tenantRepo.GetByIdAsync(order.TenantId, ct);
         if (tenant is null) return;
 
-        var settings = (await settingsRepo.FindGlobalAsync(s => s.TenantId == order.TenantId, ct)).FirstOrDefault();
-
         await OrderEmailDispatcher.EnqueueAsync(
             jobQueue,
             type,
@@ -151,7 +148,6 @@ public class HandlePaymentWebhookHandler(
             customer,
             tenant.Name,
             storeUrlBuilder.BuildUrl(tenant.Slug),
-            settings?.Currency ?? "USD",
             ct);
     }
 }

@@ -14,16 +14,6 @@ public class TenantSettingsConfiguration : IEntityTypeConfiguration<TenantSettin
 
         builder.HasIndex(s => s.TenantId).IsUnique();
 
-        builder.Property(s => s.Timezone)
-            .IsRequired()
-            .HasMaxLength(100)
-            .HasDefaultValue("UTC");
-
-        builder.Property(s => s.Currency)
-            .IsRequired()
-            .HasMaxLength(10)
-            .HasDefaultValue("USD");
-
         builder.Property(s => s.SupportEmail)
             .HasMaxLength(320)
             .IsRequired(false);

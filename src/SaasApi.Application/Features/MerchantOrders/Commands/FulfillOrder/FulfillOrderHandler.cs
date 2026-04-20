@@ -12,7 +12,6 @@ public class FulfillOrderHandler(
     IRepository<OrderItem> itemRepo,
     IRepository<Customer> customerRepo,
     IRepository<Tenant> tenantRepo,
-    IRepository<TenantSettings> settingsRepo,
     IStoreUrlBuilder storeUrlBuilder,
     IBackgroundJobQueue jobQueue,
     IAuditService auditService)
@@ -44,7 +43,6 @@ public class FulfillOrderHandler(
         var tenant = await tenantRepo.GetByIdAsync(order.TenantId, ct);
         if (tenant is not null)
         {
-            var settings = (await settingsRepo.FindAsync(_ => true, ct)).FirstOrDefault();
             await OrderEmailDispatcher.EnqueueAsync(
                 jobQueue,
                 EmailTemplateType.OrderFulfilled,
@@ -52,7 +50,6 @@ public class FulfillOrderHandler(
                 customer,
                 tenant.Name,
                 storeUrlBuilder.BuildUrl(tenant.Slug),
-                settings?.Currency ?? "USD",
                 ct);
         }
 

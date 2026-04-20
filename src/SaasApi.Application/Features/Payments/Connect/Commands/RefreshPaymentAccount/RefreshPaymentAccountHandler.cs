@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using SaasApi.Application.Common.Exceptions;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -9,7 +10,8 @@ namespace SaasApi.Application.Features.Payments.Connect.Commands.RefreshPaymentA
 public class RefreshPaymentAccountHandler(
     IRepository<TenantPaymentAccount> accountRepo,
     IPaymentService paymentService,
-    IAuditService auditService)
+    IAuditService auditService,
+    IConfiguration config)
     : IRequestHandler<RefreshPaymentAccountCommand, PaymentAccountStatusDto>
 {
     public async Task<PaymentAccountStatusDto> Handle(RefreshPaymentAccountCommand request, CancellationToken ct)
@@ -35,6 +37,7 @@ public class RefreshPaymentAccountHandler(
                 ct);
         }
 
-        return PaymentAccountStatusDto.FromEntity(account);
+        var feePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
+        return PaymentAccountStatusDto.FromEntity(account, feePercent);
     }
 }

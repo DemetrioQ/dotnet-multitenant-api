@@ -74,7 +74,7 @@ namespace SaasApi.API.Controllers
         [Authorize(Roles = RoleNames.AdminAndAbove)]
         public async Task<IActionResult> UpdateTenant([FromRoute] Guid id, [FromBody] UpdateTenantRequest request, CancellationToken ct)
         {
-            var command = new UpdateTenantCommand(id, request.Name, request.Timezone, request.Currency, request.SupportEmail, request.WebsiteUrl);
+            var command = new UpdateTenantCommand(id, request.Name, request.SupportEmail, request.WebsiteUrl);
             var result = await mediator.Send(command, ct);
             return Ok(result);
         }

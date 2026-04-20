@@ -27,7 +27,7 @@ namespace SaasApi.Application.Features.Tenants.Commands.UpdateTenant
                 throw new NotFoundException("Tenant settings not found");
 
             tenant.UpdateName(request.Name);
-            settings.Update(request.Timezone, request.Currency, request.SupportEmail, request.WebsiteUrl);
+            settings.Update(request.SupportEmail, request.WebsiteUrl);
 
             tenantRepo.Update(tenant);
             settingsRepo.Update(settings);

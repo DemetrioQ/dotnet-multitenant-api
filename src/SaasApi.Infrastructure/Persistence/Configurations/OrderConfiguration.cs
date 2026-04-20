@@ -16,6 +16,8 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.Status).IsRequired().HasConversion<int>();
         builder.Property(o => o.Subtotal).HasColumnType("decimal(18,2)");
         builder.Property(o => o.Total).HasColumnType("decimal(18,2)");
+        builder.Property(o => o.PlatformFeePercent).HasColumnType("decimal(6,4)");
+        builder.Property(o => o.PlatformFeeAmount).HasColumnType("decimal(18,2)");
 
         builder.HasOne<Customer>()
             .WithMany()

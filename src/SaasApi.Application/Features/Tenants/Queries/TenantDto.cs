@@ -9,13 +9,11 @@ namespace SaasApi.Application.Features.Tenants.Queries
         bool IsActive,
         DateTime CreatedAt,
         string StoreUrl,
-        string Timezone,
-        string Currency,
         string? SupportEmail,
         string? WebsiteUrl)
     {
         public static TenantDto FromEntities(Tenant tenant, TenantSettings settings, string storeUrl) =>
             new(tenant.Id, tenant.Name, tenant.Slug, tenant.IsActive, tenant.CreatedAt, storeUrl,
-                settings.Timezone, settings.Currency, settings.SupportEmail, settings.WebsiteUrl);
+                settings.SupportEmail, settings.WebsiteUrl);
     }
 }
