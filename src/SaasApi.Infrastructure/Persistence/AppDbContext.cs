@@ -30,6 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<TenantEmailTemplate> TenantEmailTemplates => Set<TenantEmailTemplate>();
     public DbSet<TenantPaymentAccount> TenantPaymentAccounts => Set<TenantPaymentAccount>();
+    public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -97,6 +98,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         modelBuilder.Entity<TenantPaymentAccount>()
             .HasQueryFilter(a => a.TenantId == tenantService.TenantId);
+
+        modelBuilder.Entity<OAuthClient>()
+            .HasQueryFilter(c => c.TenantId == tenantService.TenantId);
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

@@ -25,4 +25,5 @@ public interface IAppDbContext
     DbSet<TenantOnboardingStatus> TenantOnboardingStatuses { get; }
     DbSet<AuditLogEntry> AuditLogEntries { get; }
     DbSet<TenantSettings> TenantSettings { get; }
+    DbSet<OAuthClient> OAuthClients { get; }
 }

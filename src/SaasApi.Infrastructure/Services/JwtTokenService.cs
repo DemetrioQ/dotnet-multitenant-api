@@ -35,6 +35,19 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
         return Build(claims);
     }
 
+    public string GenerateToken(OAuthClient client)
+    {
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, client.Id.ToString()),
+            new Claim("tenant_id", client.TenantId.ToString()),
+            new Claim("sub_type", "client"),
+            new Claim("client_id", client.ClientId),
+            new Claim(ClaimTypes.Role, "admin"),
+        };
+        return Build(claims);
+    }
+
     private string Build(IEnumerable<Claim> claims)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Secret"]!));

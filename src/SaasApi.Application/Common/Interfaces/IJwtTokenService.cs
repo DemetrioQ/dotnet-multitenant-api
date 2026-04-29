@@ -6,4 +6,5 @@ public interface IJwtTokenService
 {
     string GenerateToken(User user);
     string GenerateToken(Customer customer);
+    string GenerateToken(OAuthClient client);
 }
