@@ -22,8 +22,16 @@ public class IssueClientTokenHandler(
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.ClientId == request.ClientId, ct);
 
-        if (client is null || client.IsRevoked || !hasher.Verify(request.ClientSecret, client.ClientSecretHash))
+        // client_credentials requires a confidential client with a stored secret hash.
+        // Public clients (PKCE) can only use authorization_code grant.
+        if (client is null
+            || client.IsRevoked
+            || client.ClientType != OAuthClientType.Confidential
+            || client.ClientSecretHash is null
+            || !hasher.Verify(request.ClientSecret, client.ClientSecretHash))
+        {
             throw new UnauthorizedAccessException("invalid_client");
+        }
 
         client.MarkUsed();
         await clientRepo.SaveChangesAsync(ct);

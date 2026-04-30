@@ -53,6 +53,24 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
         return Build(claims);
     }
 
+    public string GenerateAuthorizationCodeToken(User user, OAuthClient client, IEnumerable<string> scopes)
+    {
+        var scopeValue = string.Join(' ', scopes);
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim("tenant_id", user.TenantId.ToString()),
+            // sub_type=merchant so audit logs etc. attribute actions to the user, not the client.
+            // The client_id claim records which client was the proximate caller.
+            new Claim("sub_type", "merchant"),
+            new Claim("client_id", client.ClientId),
+            new Claim("scope", scopeValue),
+            new Claim(ClaimTypes.Role, user.Role.ToDbString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+        };
+        return Build(claims);
+    }
+
     private string Build(IEnumerable<Claim> claims)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Secret"]!));

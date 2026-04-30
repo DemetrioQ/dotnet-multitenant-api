@@ -12,11 +12,13 @@ public class OAuthClientConfiguration : IEntityTypeConfiguration<OAuthClient>
 
         builder.Property(c => c.TenantId).IsRequired();
         builder.Property(c => c.ClientId).IsRequired().HasMaxLength(64);
-        builder.Property(c => c.ClientSecretHash).IsRequired().HasMaxLength(200);
+        // Nullable: public clients have no secret (PKCE-only).
+        builder.Property(c => c.ClientSecretHash).HasMaxLength(200);
         builder.Property(c => c.Name).IsRequired().HasMaxLength(100);
+        builder.Property(c => c.ClientType).IsRequired().HasConversion<int>();
         builder.Property(c => c.Scopes).IsRequired().HasMaxLength(500).HasDefaultValue(string.Empty);
+        builder.Property(c => c.RedirectUris).IsRequired().HasMaxLength(2000).HasDefaultValue(string.Empty);
         builder.Property(c => c.IsRevoked).IsRequired();
-        builder.Property(c => c.CreatedAt).IsRequired();
 
         builder.HasIndex(c => c.ClientId).IsUnique();
         builder.HasIndex(c => c.TenantId);

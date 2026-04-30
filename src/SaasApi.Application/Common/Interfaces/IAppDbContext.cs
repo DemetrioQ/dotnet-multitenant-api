@@ -26,4 +26,6 @@ public interface IAppDbContext
     DbSet<AuditLogEntry> AuditLogEntries { get; }
     DbSet<TenantSettings> TenantSettings { get; }
     DbSet<OAuthClient> OAuthClients { get; }
+    DbSet<OAuthAuthorizationCode> OAuthAuthorizationCodes { get; }
+    DbSet<OAuthRefreshToken> OAuthRefreshTokens { get; }
 }

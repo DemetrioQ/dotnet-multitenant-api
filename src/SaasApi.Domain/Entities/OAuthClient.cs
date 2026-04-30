@@ -2,20 +2,35 @@ using SaasApi.Domain.Common;
 
 namespace SaasApi.Domain.Entities;
 
+/// <summary>
+/// Confidential clients hold a secret (server-side: CI scripts, cron jobs).
+/// Public clients can't keep a secret (CLI tools, mobile apps, browser SPAs)
+/// and must use authorization_code + PKCE.
+/// </summary>
+public enum OAuthClientType
+{
+    Confidential = 0,
+    Public = 1,
+}
+
 public class OAuthClient : BaseEntity, ITenantEntity
 {
     public Guid TenantId { get; private set; }
     public string ClientId { get; private set; } = default!;
-    public string ClientSecretHash { get; private set; } = default!;
+    /// <summary>Null for public clients (PKCE-only).</summary>
+    public string? ClientSecretHash { get; private set; }
     public string Name { get; private set; } = default!;
+    public OAuthClientType ClientType { get; private set; }
     /// <summary>Comma-separated scope list (e.g. "products:read,orders:read"). Empty string = no scopes.</summary>
     public string Scopes { get; private set; } = string.Empty;
+    /// <summary>Comma-separated allowed redirect URIs for authorization_code grant. Empty for confidential clients.</summary>
+    public string RedirectUris { get; private set; } = string.Empty;
     public bool IsRevoked { get; private set; }
     public DateTime? LastUsedAt { get; private set; }
 
     private OAuthClient() { }
 
-    public static OAuthClient Create(
+    public static OAuthClient CreateConfidential(
         Guid tenantId,
         string clientId,
         string clientSecretHash,
@@ -28,7 +43,29 @@ public class OAuthClient : BaseEntity, ITenantEntity
             ClientId = clientId,
             ClientSecretHash = clientSecretHash,
             Name = name,
+            ClientType = OAuthClientType.Confidential,
             Scopes = string.Join(",", scopes.Distinct()),
+            RedirectUris = string.Empty,
+            IsRevoked = false,
+        };
+    }
+
+    public static OAuthClient CreatePublic(
+        Guid tenantId,
+        string clientId,
+        string name,
+        IEnumerable<string> scopes,
+        IEnumerable<string> redirectUris)
+    {
+        return new OAuthClient
+        {
+            TenantId = tenantId,
+            ClientId = clientId,
+            ClientSecretHash = null,
+            Name = name,
+            ClientType = OAuthClientType.Public,
+            Scopes = string.Join(",", scopes.Distinct()),
+            RedirectUris = string.Join(",", redirectUris.Distinct()),
             IsRevoked = false,
         };
     }
@@ -37,6 +74,14 @@ public class OAuthClient : BaseEntity, ITenantEntity
         string.IsNullOrEmpty(Scopes)
             ? Array.Empty<string>()
             : Scopes.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+    public IReadOnlyList<string> GetRedirectUris() =>
+        string.IsNullOrEmpty(RedirectUris)
+            ? Array.Empty<string>()
+            : RedirectUris.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+    public bool IsRedirectUriAllowed(string redirectUri) =>
+        GetRedirectUris().Contains(redirectUri, StringComparer.Ordinal);
 
     public void MarkUsed() => LastUsedAt = DateTime.UtcNow;
     public void Revoke() => IsRevoked = true;

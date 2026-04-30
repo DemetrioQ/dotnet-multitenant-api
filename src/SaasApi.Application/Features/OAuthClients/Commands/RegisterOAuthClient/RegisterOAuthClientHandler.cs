@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using SaasApi.Application.Common.Auth;
 using MediatR;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Domain.Entities;
@@ -16,28 +16,42 @@ public class RegisterOAuthClientHandler(
         if (!tenantService.IsResolved)
             throw new UnauthorizedAccessException("Tenant context required.");
 
-        var clientId = "saasapi_" + GenerateUrlSafeRandom(24);
-        var clientSecret = GenerateUrlSafeRandom(48);
+        var clientId = "saasapi_" + SecureRandom.UrlSafeToken(24);
 
-        var entity = OAuthClient.Create(
-            tenantService.TenantId,
-            clientId,
-            hasher.Hash(clientSecret),
-            request.Name,
-            request.Scopes);
+        OAuthClient entity;
+        string? secretToReturn;
+
+        if (request.ClientType == "public")
+        {
+            entity = OAuthClient.CreatePublic(
+                tenantId: tenantService.TenantId,
+                clientId: clientId,
+                name: request.Name,
+                scopes: request.Scopes,
+                redirectUris: request.RedirectUris ?? Array.Empty<string>());
+            secretToReturn = null;
+        }
+        else
+        {
+            var clientSecret = SecureRandom.UrlSafeToken(48);
+            entity = OAuthClient.CreateConfidential(
+                tenantId: tenantService.TenantId,
+                clientId: clientId,
+                clientSecretHash: hasher.Hash(clientSecret),
+                name: request.Name,
+                scopes: request.Scopes);
+            secretToReturn = clientSecret;
+        }
 
         await clientRepo.AddAsync(entity, ct);
         await clientRepo.SaveChangesAsync(ct);
 
-        return new RegisterOAuthClientResult(clientId, clientSecret, request.Name, entity.GetScopes());
-    }
-
-    private static string GenerateUrlSafeRandom(int byteCount)
-    {
-        var bytes = RandomNumberGenerator.GetBytes(byteCount);
-        return Convert.ToBase64String(bytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('=');
+        return new RegisterOAuthClientResult(
+            ClientId: clientId,
+            ClientSecret: secretToReturn,
+            Name: request.Name,
+            ClientType: request.ClientType,
+            Scopes: entity.GetScopes(),
+            RedirectUris: entity.GetRedirectUris());
     }
 }
