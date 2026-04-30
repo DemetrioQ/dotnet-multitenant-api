@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SaasApi.API.Extensions;
 using SaasApi.API.Middleware;
 using SaasApi.API.OpenApi;
@@ -116,6 +117,12 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<SaasApi.Infrastructure.Persistence.AppDbContext>();
+
+    // Apply pending EF migrations on startup. Single-replica deploy on the Oracle VM,
+    // so the textbook race-condition concerns about concurrent migrators don't apply.
+    // A bad migration here will fail-fast at boot rather than serving broken data.
+    await db.Database.MigrateAsync();
+
     var passwordHasher = scope.ServiceProvider.GetRequiredService<SaasApi.Application.Common.Interfaces.IPasswordHasher>();
     var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     await SaasApi.Infrastructure.Persistence.DatabaseSeeder.SeedAsync(db, passwordHasher, configuration);
