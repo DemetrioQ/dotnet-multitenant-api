@@ -2,6 +2,7 @@ using Asp.Versioning;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SaasApi.API.Authorization;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Tenants.Commands.CreateTenant;
 using SaasApi.Application.Features.Tenants.Commands.DeactivateTenant;
@@ -10,6 +11,7 @@ using SaasApi.Application.Features.Tenants.Queries.GetTenantById;
 using SaasApi.Application.Features.Tenants.Queries.GetOnboardingStatus;
 using SaasApi.Application.Features.Tenants.Queries.GetTenantDashboard;
 using SaasApi.Application.Features.Tenants.Queries.GetTenants;
+using SaasApi.Domain.Common;
 using SaasApi.Domain.Entities;
 
 namespace SaasApi.API.Controllers
@@ -36,6 +38,7 @@ namespace SaasApi.API.Controllers
 
         [HttpGet("dashboard")]
         [Authorize]
+        [RequireScope(OAuthScopes.DashboardRead)]
         public async Task<IActionResult> GetDashboard([FromQuery] GetTenantDashboardQuery query, CancellationToken ct)
         {
             var result = await mediator.Send(query, ct);

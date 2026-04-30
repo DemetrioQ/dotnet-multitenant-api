@@ -37,12 +37,17 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
 
     public string GenerateToken(OAuthClient client)
     {
+        // OAuth convention: scopes are space-separated in a single "scope" claim.
+        var scopeValue = string.Join(' ', client.GetScopes());
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, client.Id.ToString()),
             new Claim("tenant_id", client.TenantId.ToString()),
             new Claim("sub_type", "client"),
             new Claim("client_id", client.ClientId),
+            new Claim("scope", scopeValue),
+            // Keep the admin role so existing [Authorize(Roles = ...)] still passes.
+            // Scope checks layer on top via [RequireScope] for finer-grained control.
             new Claim(ClaimTypes.Role, "admin"),
         };
         return Build(claims);

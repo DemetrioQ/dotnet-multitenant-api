@@ -23,12 +23,13 @@ public class RegisterOAuthClientHandler(
             tenantService.TenantId,
             clientId,
             hasher.Hash(clientSecret),
-            request.Name);
+            request.Name,
+            request.Scopes);
 
         await clientRepo.AddAsync(entity, ct);
         await clientRepo.SaveChangesAsync(ct);
 
-        return new RegisterOAuthClientResult(clientId, clientSecret, request.Name);
+        return new RegisterOAuthClientResult(clientId, clientSecret, request.Name, entity.GetScopes());
     }
 
     private static string GenerateUrlSafeRandom(int byteCount)
