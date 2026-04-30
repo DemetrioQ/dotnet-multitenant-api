@@ -2,7 +2,9 @@ using MediatR;
 
 namespace SaasApi.Application.Features.Tenants.Queries.GetTenantDashboard;
 
-public record GetTenantDashboardQuery : IRequest<TenantDashboardDto>;
+public record GetTenantDashboardQuery(
+    DateTime? From = null,
+    DateTime? To = null) : IRequest<TenantDashboardDto>;
 
 public record TopProductDto(Guid ProductId, string Name, string Slug, int UnitsSold, decimal Revenue);
 

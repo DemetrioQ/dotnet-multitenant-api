@@ -36,9 +36,9 @@ namespace SaasApi.API.Controllers
 
         [HttpGet("dashboard")]
         [Authorize]
-        public async Task<IActionResult> GetDashboard(CancellationToken ct)
+        public async Task<IActionResult> GetDashboard([FromQuery] GetTenantDashboardQuery query, CancellationToken ct)
         {
-            var result = await mediator.Send(new GetTenantDashboardQuery(), ct);
+            var result = await mediator.Send(query, ct);
             return Ok(result);
         }
 

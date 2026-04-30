@@ -30,8 +30,17 @@ public class GetTenantDashboardHandler(IAppDbContext db, IConfiguration config)
 
         var customerCount = await db.Customers.CountAsync(ct);
 
+        // Date range applies to order-derived stats only (revenue, top products, order
+        // counts). User/product/customer totals are point-in-time snapshots — filtering
+        // them by an order date range would be misleading.
+        var ordersInRange = db.Orders.AsQueryable();
+        if (request.From is { } from)
+            ordersInRange = ordersInRange.Where(o => o.CreatedAt >= from);
+        if (request.To is { } to)
+            ordersInRange = ordersInRange.Where(o => o.CreatedAt < to);
+
         // Orders: pending + paid/fulfilled counts + gross revenue + platform fees in one round-trip.
-        var orderStats = await db.Orders
+        var orderStats = await ordersInRange
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -52,7 +61,7 @@ public class GetTenantDashboardHandler(IAppDbContext db, IConfiguration config)
         var currentFeePercent = config.GetValue<decimal?>("Payments:PlatformFeePercent") ?? 0.05m;
 
         // Top 5 products by revenue — SQL GROUP BY over OrderItems of paid/fulfilled orders.
-        var paidOrderIds = db.Orders
+        var paidOrderIds = ordersInRange
             .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Fulfilled)
             .Select(o => o.Id);
         // SQLite can't ORDER BY a decimal expression (works on SQL Server). Cast the

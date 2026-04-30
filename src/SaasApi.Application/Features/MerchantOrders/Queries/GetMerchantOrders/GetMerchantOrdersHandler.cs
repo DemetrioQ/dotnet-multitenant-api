@@ -20,6 +20,10 @@ public class GetMerchantOrdersHandler(IAppDbContext db)
         {
             query = query.Where(o => o.Status == parsed);
         }
+        if (request.From is { } from)
+            query = query.Where(o => o.CreatedAt >= from);
+        if (request.To is { } to)
+            query = query.Where(o => o.CreatedAt < to);
 
         var total = await query.CountAsync(ct);
         if (total == 0)
