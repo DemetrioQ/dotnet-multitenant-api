@@ -7,7 +7,9 @@ using SaasApi.Application.Features.OAuthClients.Commands.ExchangeAuthorizationCo
 using SaasApi.Application.Features.OAuthClients.Commands.IssueAuthorizationCode;
 using SaasApi.Application.Features.OAuthClients.Commands.IssueClientToken;
 using SaasApi.Application.Features.OAuthClients.Commands.RefreshAccessToken;
+using SaasApi.Application.Features.OAuthClients.Commands.RegisterDynamicClient;
 using SaasApi.Application.Features.OAuthClients.Commands.RegisterOAuthClient;
+using System.Text.Json.Serialization;
 using SaasApi.Application.Features.OAuthClients.Commands.RevokeOAuthClient;
 using SaasApi.Application.Features.OAuthClients.Queries.GetAuthorizeRequestInfo;
 using SaasApi.Application.Features.OAuthClients.Queries.GetOAuthClients;
@@ -139,6 +141,45 @@ public class OAuthController(IMediator mediator) : ControllerBase
         return Ok(new { redirectUrl = result.RedirectUrl });
     }
 
+    /// <summary>
+    /// RFC 7591 — Dynamic Client Registration. Anonymous. Creates a tenantless
+    /// public client (PKCE-only). Returns the client_id; no secret is issued.
+    /// Used by Claude Code's hosted MCP discovery flow.
+    /// </summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    [Consumes("application/json")]
+    public async Task<IActionResult> RegisterDynamic([FromBody] DynamicRegistrationBody body, CancellationToken ct)
+    {
+        try
+        {
+            var result = await mediator.Send(new RegisterDynamicClientCommand(
+                ClientName: body.ClientName,
+                RedirectUris: body.RedirectUris,
+                GrantTypes: body.GrantTypes,
+                ResponseTypes: body.ResponseTypes,
+                TokenEndpointAuthMethod: body.TokenEndpointAuthMethod), ct);
+
+            // RFC 7591 §3.2.1 — return 201 with the registered client metadata.
+            return StatusCode(StatusCodes.Status201Created, new
+            {
+                client_id = result.ClientId,
+                client_id_issued_at = result.ClientIdIssuedAt,
+                client_name = result.ClientName,
+                redirect_uris = result.RedirectUris,
+                grant_types = result.GrantTypes,
+                response_types = result.ResponseTypes,
+                token_endpoint_auth_method = result.TokenEndpointAuthMethod,
+                scope = result.Scope,
+            });
+        }
+        catch (BadRequestException ex)
+        {
+            // RFC 7591 §3.2.2 — invalid_client_metadata
+            return BadRequest(new { error = "invalid_client_metadata", error_description = ex.Message });
+        }
+    }
+
     [HttpGet("clients")]
     [Authorize(Roles = RoleNames.AdminAndAbove)]
     public async Task<IActionResult> ListClients(CancellationToken ct)
@@ -182,5 +223,27 @@ public class OAuthController(IMediator mediator) : ControllerBase
         public string CodeChallenge { get; set; } = "";
         public string CodeChallengeMethod { get; set; } = "";
         public string? State { get; set; }
+    }
+
+    /// <summary>
+    /// RFC 7591 §2 — Client Metadata. snake_case keys are the wire format clients
+    /// (e.g. Claude Code) send; we map them to the MediatR command via attributes.
+    /// </summary>
+    public class DynamicRegistrationBody
+    {
+        [JsonPropertyName("client_name")]
+        public string? ClientName { get; set; }
+
+        [JsonPropertyName("redirect_uris")]
+        public List<string>? RedirectUris { get; set; }
+
+        [JsonPropertyName("grant_types")]
+        public List<string>? GrantTypes { get; set; }
+
+        [JsonPropertyName("response_types")]
+        public List<string>? ResponseTypes { get; set; }
+
+        [JsonPropertyName("token_endpoint_auth_method")]
+        public string? TokenEndpointAuthMethod { get; set; }
     }
 }

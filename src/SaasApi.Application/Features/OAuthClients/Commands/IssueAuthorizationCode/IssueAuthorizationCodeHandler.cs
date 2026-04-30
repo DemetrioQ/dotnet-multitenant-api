@@ -25,10 +25,15 @@ public class IssueAuthorizationCodeHandler(
         if (userId == Guid.Empty)
             throw new UnauthorizedAccessException("Authenticated user required.");
 
-        // Tenant-filtered: a user can only authorize clients in their own tenant.
-        var clients = await clientRepo.FindAsync(c => c.ClientId == request.ClientId && !c.IsRevoked, ct);
+        // Cross-tenant lookup: DCR clients (RFC 7591) have TenantId=null and any
+        // user can authorize them. Tenanted clients (registered via the dashboard)
+        // can only be authorized by users of the same tenant.
+        var clients = await clientRepo.FindGlobalAsync(c => c.ClientId == request.ClientId && !c.IsRevoked, ct);
         var client = clients.FirstOrDefault()
             ?? throw new NotFoundException("invalid_client");
+
+        if (client.TenantId is not null && client.TenantId != tenantService.TenantId)
+            throw new NotFoundException("invalid_client");
 
         if (client.ClientType != OAuthClientType.Public)
             throw new BadRequestException("Authorization code flow requires a public client.");

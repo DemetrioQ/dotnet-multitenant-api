@@ -13,9 +13,14 @@ public enum OAuthClientType
     Public = 1,
 }
 
-public class OAuthClient : BaseEntity, ITenantEntity
+public class OAuthClient : BaseEntity
 {
-    public Guid TenantId { get; private set; }
+    /// <summary>
+    /// Null for clients registered via Dynamic Client Registration (RFC 7591).
+    /// DCR happens before user auth — the client has no tenant at registration time.
+    /// Tenant binds at the authorize step from the user's JWT (stored on the auth code).
+    /// </summary>
+    public Guid? TenantId { get; private set; }
     public string ClientId { get; private set; } = default!;
     /// <summary>Null for public clients (PKCE-only).</summary>
     public string? ClientSecretHash { get; private set; }
@@ -60,6 +65,32 @@ public class OAuthClient : BaseEntity, ITenantEntity
         return new OAuthClient
         {
             TenantId = tenantId,
+            ClientId = clientId,
+            ClientSecretHash = null,
+            Name = name,
+            ClientType = OAuthClientType.Public,
+            Scopes = string.Join(",", scopes.Distinct()),
+            RedirectUris = string.Join(",", redirectUris.Distinct()),
+            IsRevoked = false,
+        };
+    }
+
+    /// <summary>
+    /// Dynamic Client Registration (RFC 7591): tenantless public client. The client
+    /// gains its effective tenant when a user authorizes it — the auth code stores
+    /// that user's TenantId, and downstream tokens read it from there.
+    /// All DCR clients receive the full configured scope set; per-user consent
+    /// would narrow it later if we added a consent screen.
+    /// </summary>
+    public static OAuthClient CreatePublicForDcr(
+        string clientId,
+        string name,
+        IEnumerable<string> scopes,
+        IEnumerable<string> redirectUris)
+    {
+        return new OAuthClient
+        {
+            TenantId = null,
             ClientId = clientId,
             ClientSecretHash = null,
             Name = name,

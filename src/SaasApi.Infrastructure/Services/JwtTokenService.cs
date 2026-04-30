@@ -39,10 +39,14 @@ public class JwtTokenService(IConfiguration config) : IJwtTokenService
     {
         // OAuth convention: scopes are space-separated in a single "scope" claim.
         var scopeValue = string.Join(' ', client.GetScopes());
+        // client_credentials requires a tenanted client; DCR clients (TenantId=null)
+        // are public and only flow through authorization_code, never here.
+        if (client.TenantId is null)
+            throw new InvalidOperationException("Cannot issue client_credentials token for a tenantless client.");
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, client.Id.ToString()),
-            new Claim("tenant_id", client.TenantId.ToString()),
+            new Claim("tenant_id", client.TenantId.Value.ToString()),
             new Claim("sub_type", "client"),
             new Claim("client_id", client.ClientId),
             new Claim("scope", scopeValue),

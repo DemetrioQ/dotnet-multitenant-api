@@ -10,7 +10,8 @@ public class OAuthClientConfiguration : IEntityTypeConfiguration<OAuthClient>
     {
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.TenantId).IsRequired();
+        // Nullable: DCR-registered clients (RFC 7591) have no tenant at registration.
+        builder.Property(c => c.TenantId);
         builder.Property(c => c.ClientId).IsRequired().HasMaxLength(64);
         // Nullable: public clients have no secret (PKCE-only).
         builder.Property(c => c.ClientSecretHash).HasMaxLength(200);
