@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using SaasApi.API.Extensions;
 using SaasApi.API.Middleware;
@@ -44,6 +45,18 @@ builder.Services.AddOpenApi(opts =>
     opts.AddDocumentTransformer<ApiVersionPathTransformer>();
 });
 
+// Caddy terminates TLS in front of us; trust X-Forwarded-* so Request.Scheme
+// reflects "https" and OAuth metadata URLs (issuer, token_endpoint, etc.) are
+// emitted with the correct scheme.
+builder.Services.Configure<ForwardedHeadersOptions>(opts =>
+{
+    opts.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    opts.KnownNetworks.Clear();
+    opts.KnownProxies.Clear();
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -76,6 +89,10 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Must run before anything that reads Request.Scheme/Host (HttpsRedirection,
+// OAuth metadata controller, etc.).
+app.UseForwardedHeaders();
 
 app.MapOpenApi();
 app.MapScalarApiReference(opts =>
