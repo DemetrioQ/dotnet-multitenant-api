@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditService, AuditService>();
         services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
         services.AddHostedService<BackgroundJobProcessor>();
+        services.AddHostedService<DemoCleanupService>();
 
         var paymentsProvider = (config["Payments:Provider"] ?? "simulation").ToLowerInvariant();
         if (paymentsProvider == "stripe")

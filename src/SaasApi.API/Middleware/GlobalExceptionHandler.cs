@@ -58,6 +58,16 @@ namespace SaasApi.API.Middleware
                     };
                     break;
 
+                case ForbiddenException fe:
+                    statusCode = StatusCodes.Status403Forbidden;
+                    problem = new ProblemDetails
+                    {
+                        Title = "Forbidden",
+                        Detail = fe.Message,
+                        Status = statusCode
+                    };
+                    break;
+
                 case EmailNotVerifiedException enve:
                     statusCode = StatusCodes.Status403Forbidden;
                     problem = new ProblemDetails

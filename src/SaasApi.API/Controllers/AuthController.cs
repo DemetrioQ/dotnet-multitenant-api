@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using SaasApi.Application.Common.Interfaces;
+using SaasApi.Application.Features.Demo.Commands.ElevateDemoRole;
+using SaasApi.Application.Features.Demo.Commands.ProvisionDemoTenant;
 using SaasApi.Application.Features.Users.Commands.ChangePassword;
 using SaasApi.Application.Features.Users.Commands.ForgotPassword;
 using SaasApi.Application.Features.Users.Commands.ResendVerification;
@@ -132,6 +134,29 @@ public class AuthController(
     {
         Response.Cookies.Delete("refreshToken");
         return NoContent();
+    }
+
+    [HttpPost("demo/provision")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ProvisionDemo(CancellationToken ct)
+    {
+        var result = await mediator.Send(new ProvisionDemoTenantCommand(), ct);
+        SetRefreshTokenCookie(result.RefreshToken, result.RefreshExpiresAt);
+        return Ok(new
+        {
+            jwtToken = result.JwtToken,
+            tenantSlug = result.TenantSlug,
+            tenantName = result.TenantName,
+            demoExpiresAt = result.DemoExpiresAt,
+        });
+    }
+
+    [HttpPost("demo/elevate")]
+    [Authorize]
+    public async Task<IActionResult> ElevateDemo([FromBody] ElevateDemoRoleCommand command, CancellationToken ct)
+    {
+        var result = await mediator.Send(command, ct);
+        return Ok(new { jwtToken = result.JwtToken });
     }
 
     private void SetRefreshTokenCookie(string refreshToken, DateTime expiresAt)

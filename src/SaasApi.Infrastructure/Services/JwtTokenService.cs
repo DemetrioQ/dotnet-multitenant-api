@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using SaasApi.Application.Common.Interfaces;
@@ -8,31 +9,56 @@ using SaasApi.Domain.Entities;
 
 namespace SaasApi.Infrastructure.Services;
 
-public class JwtTokenService(IConfiguration config) : IJwtTokenService
+public class JwtTokenService(IConfiguration config, IAppDbContext db) : IJwtTokenService
 {
     public string GenerateToken(User user)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim("tenant_id", user.TenantId.ToString()),
-            new Claim("sub_type", "merchant"),
-            new Claim(ClaimTypes.Role, user.Role.ToDbString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new("tenant_id", user.TenantId.ToString()),
+            new("sub_type", "merchant"),
+            new(ClaimTypes.Role, user.Role.ToDbString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
         };
+        AppendDemoClaimsForTenant(user.TenantId, claims);
         return Build(claims);
     }
 
     public string GenerateToken(Customer customer)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, customer.Id.ToString()),
-            new Claim("tenant_id", customer.TenantId.ToString()),
-            new Claim("sub_type", "customer"),
-            new Claim(JwtRegisteredClaimNames.Email, customer.Email),
+            new(JwtRegisteredClaimNames.Sub, customer.Id.ToString()),
+            new("tenant_id", customer.TenantId.ToString()),
+            new("sub_type", "customer"),
+            new(JwtRegisteredClaimNames.Email, customer.Email),
         };
+        if (customer.IsDemo)
+        {
+            claims.Add(new Claim("demo", "true"));
+            if (customer.DemoExpiresAt.HasValue)
+                claims.Add(new Claim("demo_expires_at",
+                    customer.DemoExpiresAt.Value.ToUniversalTime().ToString("o")));
+        }
         return Build(claims);
+    }
+
+    private void AppendDemoClaimsForTenant(Guid tenantId, List<Claim> claims)
+    {
+        // Demo-ness for merchant users derives from their Tenant. Cheap point lookup,
+        // bypasses query filters since we may not have tenant context here.
+        var tenant = db.Tenants
+            .IgnoreQueryFilters()
+            .Where(t => t.Id == tenantId)
+            .Select(t => new { t.IsDemo, t.DemoExpiresAt })
+            .FirstOrDefault();
+
+        if (tenant is null || !tenant.IsDemo) return;
+        claims.Add(new Claim("demo", "true"));
+        if (tenant.DemoExpiresAt.HasValue)
+            claims.Add(new Claim("demo_expires_at",
+                tenant.DemoExpiresAt.Value.ToUniversalTime().ToString("o")));
     }
 
     public string GenerateToken(OAuthClient client)

@@ -25,7 +25,8 @@ public class GetStoreDirectoryHandler(
         var paged = ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new StoreDirectoryItemDto(t.Name, t.Slug, storeUrlBuilder.BuildUrl(t.Slug)))
+            .Select(t => new StoreDirectoryItemDto(
+                t.Name, t.Slug, storeUrlBuilder.BuildUrl(t.Slug), t.IsDemo, t.DemoExpiresAt))
             .ToList();
 
         return new PagedResult<StoreDirectoryItemDto>(paged, totalCount, page, pageSize);

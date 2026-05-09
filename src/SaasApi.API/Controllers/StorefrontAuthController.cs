@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using SaasApi.Application.Common.Interfaces;
 using SaasApi.Application.Features.Storefront.Auth.Commands.ForgotCustomerPassword;
 using SaasApi.Application.Features.Storefront.Auth.Commands.LoginCustomer;
+using SaasApi.Application.Features.Storefront.Auth.Commands.ProvisionDemoCustomer;
 using SaasApi.Application.Features.Storefront.Auth.Commands.RefreshCustomerTokens;
 using SaasApi.Application.Features.Storefront.Auth.Commands.RegisterCustomer;
 using SaasApi.Application.Features.Storefront.Auth.Commands.ResendCustomerVerification;
@@ -82,6 +83,18 @@ public class StorefrontAuthController(
     {
         Response.Cookies.Delete(CustomerRefreshCookie);
         return NoContent();
+    }
+
+    [HttpPost("demo/provision")]
+    public async Task<IActionResult> ProvisionDemo(CancellationToken ct)
+    {
+        var result = await mediator.Send(new ProvisionDemoCustomerCommand(), ct);
+        SetRefreshTokenCookie(result.RefreshToken, result.RefreshExpiresAt);
+        return Ok(new
+        {
+            jwtToken = result.JwtToken,
+            demoExpiresAt = result.DemoExpiresAt,
+        });
     }
 
     [HttpPost("resend-verification")]

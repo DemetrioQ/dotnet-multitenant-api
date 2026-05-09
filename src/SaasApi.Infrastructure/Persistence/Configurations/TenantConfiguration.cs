@@ -23,5 +23,14 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 
         builder.Property(t => t.IsActive)
             .HasDefaultValue(true);
+
+        builder.Property(t => t.IsDemo)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(t => t.DemoExpiresAt);
+
+        builder.HasIndex(t => t.DemoExpiresAt)
+            .HasFilter("[IsDemo] = 1");
     }
 }

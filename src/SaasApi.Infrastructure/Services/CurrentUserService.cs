@@ -19,4 +19,7 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     public string? Email =>
         httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.Email)?.Value
         ?? httpContextAccessor.HttpContext?.User.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
+
+    public bool IsDemo =>
+        httpContextAccessor.HttpContext?.User.FindFirst("demo")?.Value == "true";
 }

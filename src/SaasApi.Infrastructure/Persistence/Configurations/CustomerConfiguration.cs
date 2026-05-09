@@ -30,5 +30,14 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 
         builder.Property(c => c.IsActive).IsRequired();
         builder.Property(c => c.IsEmailVerified).IsRequired().HasDefaultValue(false);
+
+        builder.Property(c => c.IsDemo)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(c => c.DemoExpiresAt);
+
+        builder.HasIndex(c => c.DemoExpiresAt)
+            .HasFilter("[IsDemo] = 1");
     }
 }

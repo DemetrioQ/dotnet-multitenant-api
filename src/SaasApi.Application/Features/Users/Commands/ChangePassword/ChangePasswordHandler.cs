@@ -20,6 +20,9 @@ public class ChangePasswordHandler(
         if (currentUser.UserId == Guid.Empty)
             throw new UnauthorizedAccessException("Not authenticated.");
 
+        if (currentUser.IsDemo)
+            throw new ForbiddenException("Demo accounts cannot change their password.");
+
         var users = await userRepo.FindGlobalAsync(u => u.Id == currentUser.UserId, ct);
         if (!users.Any())
             throw new NotFoundException("User not found.");

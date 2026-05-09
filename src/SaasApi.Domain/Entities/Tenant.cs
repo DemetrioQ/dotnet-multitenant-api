@@ -7,11 +7,31 @@ public class Tenant : BaseEntity
     public string Name { get; private set; } = default!;
     public string Slug { get; private set; } = default!; // used in subdomain/header routing
     public bool IsActive { get; private set; } = true;
+    public bool IsDemo { get; private set; }
+    public DateTime? DemoExpiresAt { get; private set; }
 
     private Tenant() { } // EF Core
 
 
     public static Tenant Create(string name, string slug)
+    {
+        ValidateNameAndSlug(name, slug);
+        return new Tenant { Name = name, Slug = slug };
+    }
+
+    public static Tenant CreateDemo(string name, string slug, DateTime expiresAt)
+    {
+        ValidateNameAndSlug(name, slug);
+        return new Tenant
+        {
+            Name = name,
+            Slug = slug,
+            IsDemo = true,
+            DemoExpiresAt = expiresAt
+        };
+    }
+
+    private static void ValidateNameAndSlug(string name, string slug)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Tenant name cannot be empty.", nameof(name));
@@ -21,8 +41,6 @@ public class Tenant : BaseEntity
 
         if (!System.Text.RegularExpressions.Regex.IsMatch(slug, @"^[a-z0-9]+(?:-[a-z0-9]+)*$"))
             throw new ArgumentException("Slug must be lowercase alphanumeric and may contain hyphens (e.g. 'my-tenant').", nameof(slug));
-
-        return new Tenant { Name = name, Slug = slug };
     }
 
     public void Deactivate() => IsActive = false;
