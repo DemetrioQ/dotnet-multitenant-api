@@ -25,10 +25,13 @@ internal sealed class ApiVersionPathTransformer : IOpenApiDocumentTransformer
 
             foreach (var operation in item.Operations.Values)
             {
-                var versionParam = operation.Parameters
-                    .FirstOrDefault(p => p.Name == "version" && p.In == ParameterLocation.Path);
-                if (versionParam is not null)
-                    operation.Parameters.Remove(versionParam);
+                if (operation.Parameters is not null)
+                {
+                    var versionParam = operation.Parameters
+                        .FirstOrDefault(p => p.Name == "version" && p.In == ParameterLocation.Path);
+                    if (versionParam is not null)
+                        operation.Parameters.Remove(versionParam);
+                }
             }
 
             rewritten.Add(newPath, item);
