@@ -112,6 +112,56 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentTenant
 
         // TODO: apply entity configurations from separate IEntityTypeConfiguration<T> classes
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        if (Database.IsOracle())
+            ApplyOracleConventions(modelBuilder);
+    }
+
+    /// <summary>
+    /// Entity configurations are written for SQL Server. This adapts the few places
+    /// where Oracle semantics differ, so configurations stay provider-agnostic.
+    /// </summary>
+    private static void ApplyOracleConventions(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var index in entityType.GetIndexes().ToList())
+            {
+                if (index.GetFilter() is null)
+                    continue;
+
+                if (index.IsUnique)
+                {
+                    // Oracle has no filtered indexes, and a composite unique index like
+                    // (TenantId, Sku) would reject two rows with the same tenant and a NULL
+                    // Sku. Drop it from the model; the Oracle InitialCreate migration
+                    // recreates it as a function-based unique index with equivalent semantics.
+                    entityType.RemoveIndex(index);
+                }
+                else
+                {
+                    // Non-unique filtered indexes are only a size optimisation — keep them unfiltered.
+                    index.SetFilter(null);
+                }
+            }
+
+            // Oracle stores '' as NULL, so a required string defaulting to "" can never be
+            // satisfied. Allow NULL instead; the domain already treats null and empty alike.
+            foreach (var property in entityType.GetProperties().Where(p => p.ClrType == typeof(string)))
+            {
+                if (Equals(property.GetDefaultValue(), string.Empty))
+                {
+                    property.IsNullable = true;
+                    property.SetDefaultValue(null);
+                }
+
+                // Unbounded strings are nvarchar(max) on SQL Server but the Oracle provider
+                // defaults them to NVARCHAR2(2000). Use NCLOB so long content (e.g. email
+                // template HTML) isn't truncated. LOBs can't be indexed, so skip keyed columns.
+                if (property.GetMaxLength() is null && !property.IsKey() && !property.IsIndex())
+                    property.SetColumnType("NCLOB");
+            }
+        }
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken ct = default)

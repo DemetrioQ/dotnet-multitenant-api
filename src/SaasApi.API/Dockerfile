@@ -8,6 +8,7 @@ COPY ["src/SaasApi.API/SaasApi.API.csproj", "src/SaasApi.API/"]
 COPY ["src/SaasApi.Application/SaasApi.Application.csproj", "src/SaasApi.Application/"]
 COPY ["src/SaasApi.Domain/SaasApi.Domain.csproj", "src/SaasApi.Domain/"]
 COPY ["src/SaasApi.Infrastructure/SaasApi.Infrastructure.csproj", "src/SaasApi.Infrastructure/"]
+COPY ["src/SaasApi.Migrations.Oracle/SaasApi.Migrations.Oracle.csproj", "src/SaasApi.Migrations.Oracle/"]
 RUN dotnet restore "src/SaasApi.API/SaasApi.API.csproj"
 COPY . .
 RUN dotnet build "src/SaasApi.API/SaasApi.API.csproj" -c Release -o /app/build

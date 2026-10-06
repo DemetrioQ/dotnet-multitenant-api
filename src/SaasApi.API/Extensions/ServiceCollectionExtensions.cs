@@ -52,7 +52,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
         services.AddDbContext<AppDbContext>(opts =>
-            opts.UseSqlServer(config.GetConnectionString("DefaultConnection")));
+            opts.UseConfiguredDatabase(config));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
