@@ -31,6 +31,18 @@ jobs:
       - name: Build
         run: dotnet build SaasApi.sln --no-restore -c Release
 
+      # Each provider has its own migration set; fail if a model change was only
+      # migrated for one of them. Neither check connects to a database.
+      - name: Check migrations are up to date
+        env:
+          ConnectionStrings__DefaultConnection: "User Id=ci;Password=ci;Data Source=localhost:1521/CI"
+        run: |
+          dotnet tool install --global dotnet-ef --version 9.0.*
+          Database__Provider=SqlServer dotnet ef migrations has-pending-model-changes \
+            --project src/SaasApi.Infrastructure --startup-project src/SaasApi.API --no-build --configuration Release
+          Database__Provider=Oracle dotnet ef migrations has-pending-model-changes \
+            --project src/SaasApi.Migrations.Oracle --startup-project src/SaasApi.API --no-build --configuration Release
+
       - name: Run integration tests
         run: dotnet test tests/SaasApi.IntegrationTests/SaasApi.IntegrationTests.csproj --no-build -c Release --logger trx --results-directory ./TestResults
 

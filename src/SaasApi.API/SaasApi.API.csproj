@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SaasApi.Application\SaasApi.Application.csproj" />
     <ProjectReference Include="..\SaasApi.Infrastructure\SaasApi.Infrastructure.csproj" />
+    <ProjectReference Include="..\SaasApi.Migrations.Oracle\SaasApi.Migrations.Oracle.csproj" />
   </ItemGroup>
 
 </Project>

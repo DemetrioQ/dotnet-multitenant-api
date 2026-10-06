@@ -1,0 +1,25 @@
+# Run the API against Oracle instead of SQL Server:
+#   docker compose -f docker-compose.yml -f docker-compose.oracle.yml up oracle api
+services:
+  api:
+    environment:
+      - Database__Provider=Oracle
+      - Database__OracleVersion=23
+      - ConnectionStrings__DefaultConnection=User Id=saas;Password=YourStrong!Passw0rd;Data Source=oracle:1521/FREEPDB1;
+    depends_on: !override
+      oracle:
+        condition: service_healthy
+
+  oracle:
+    image: gvenzl/oracle-free:23-slim-faststart
+    environment:
+      - ORACLE_PASSWORD=YourStrong!Passw0rd
+      - APP_USER=saas
+      - APP_USER_PASSWORD=YourStrong!Passw0rd
+    ports:
+      - "1521:1521"
+    healthcheck:
+      test: healthcheck.sh
+      interval: 10s
+      retries: 20
+      start_period: 30s
